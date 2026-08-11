@@ -1,0 +1,16 @@
+# Build directory
+build/
+
+# Object files and binaries
+*.o
+c0ntrol
+tests/test_display_transform
+tests/test_dynamic_gestures
+tests/test_frame_sync
+tests/test_hand_geometry
+tests/test_one_euro
+
+# OS / Editor files
+.DS_Store
+.vscode/
+.idea/
