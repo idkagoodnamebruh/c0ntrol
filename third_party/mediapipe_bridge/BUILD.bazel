@@ -1,0 +1,14 @@
+licenses(["notice"])
+
+cc_binary(
+    name = "libc0ntrol_mediapipe_bridge.so",
+    srcs = ["c0ntrol_mediapipe_bridge.cc"],
+    hdrs = ["c0ntrol_mediapipe_bridge.h"],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//mediapipe/framework/formats:image",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/tasks/cc/vision/hand_landmarker:hand_landmarker",
+    ],
+)

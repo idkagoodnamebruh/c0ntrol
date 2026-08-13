@@ -4,6 +4,8 @@ Phase 2 introduces an independent tracking contract, backend interface, explicit
 
 The MediaPipe backend targets Hand Landmarker VIDEO mode, validates the model path, makes an owned row-wise RGB copy, invokes `DetectForVideo`, and converts normalized/world landmarks plus handedness immediately. No vendor type leaves its PIMPL.
 
-This phase is **PARTIAL / ENVIRONMENT_BLOCKED**: concrete MediaPipe headers/library, Qt6 and OpenCV were unavailable, so the real backend was not compiled or run and real landmarks cannot be claimed. Mock/default fallback is explicit. The model bundle structure was validated, not its inference behavior.
+Phase 2B corrects the official wrapper access, pins MediaPipe v0.10.26/`80ae8afb`, adds a Bazel-built shared C bridge with its transitive closure, explicit `Close()`, monotonic VIDEO milliseconds, filesystem error handling, and a headless integration target independent of Qt/OpenCV.
+
+This phase remains **PARTIAL / ENVIRONMENT_BLOCKED**: the pinned MediaPipe/Bazel artifact was unavailable, so the bridge/backend were not compiled or run and real landmarks cannot be claimed. Mock/default fallback is explicit. The model bundle structure was validated, not its `Create`/inference behavior.
 
 OneEuro mathematics, GestureClassifier, FSM, dynamic gestures and OS input were not changed. Six headless tests pass. See the research/build/test/risk documents for limitations.

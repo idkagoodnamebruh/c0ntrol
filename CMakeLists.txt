@@ -3,12 +3,22 @@ project(c0ntrol VERSION 1.0 LANGUAGES CXX)
 
 option(BUILD_APP "Build c0ntrol desktop application" ON)
 option(ENABLE_MEDIAPIPE "Build the MediaPipe Hand Landmarker backend" OFF)
-set(MEDIAPIPE_ROOT "" CACHE PATH "MediaPipe source/install root")
-set(MEDIAPIPE_HAND_LANDMARKER_LIBRARY "" CACHE FILEPATH "Hand Landmarker C++ library")
+set(MEDIAPIPE_BRIDGE_LIBRARY "" CACHE FILEPATH "Pinned c0ntrol MediaPipe bridge shared library")
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(ENABLE_MEDIAPIPE)
+    if(NOT MEDIAPIPE_BRIDGE_LIBRARY)
+        message(FATAL_ERROR "ENABLE_MEDIAPIPE requires MEDIAPIPE_BRIDGE_LIBRARY built from the pinned bridge")
+    endif()
+    add_library(MediaPipe::C0ntrolBridge SHARED IMPORTED)
+    set_target_properties(MediaPipe::C0ntrolBridge PROPERTIES
+        IMPORTED_LOCATION "${MEDIAPIPE_BRIDGE_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}"
+    )
+endif()
 
 if(BUILD_APP)
     set(CMAKE_AUTOMOC ON)
@@ -23,15 +33,6 @@ if(BUILD_APP)
 
     if(NOT ENABLE_MEDIAPIPE)
         list(FILTER SOURCES EXCLUDE REGEX "MediaPipeHandTrackingBackend\\.cpp$")
-    else()
-        if(NOT MEDIAPIPE_ROOT OR NOT MEDIAPIPE_HAND_LANDMARKER_LIBRARY)
-            message(FATAL_ERROR "ENABLE_MEDIAPIPE requires MEDIAPIPE_ROOT and MEDIAPIPE_HAND_LANDMARKER_LIBRARY")
-        endif()
-        add_library(MediaPipe::HandLandmarker UNKNOWN IMPORTED)
-        set_target_properties(MediaPipe::HandLandmarker PROPERTIES
-            IMPORTED_LOCATION "${MEDIAPIPE_HAND_LANDMARKER_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${MEDIAPIPE_ROOT}"
-        )
     endif()
 
     add_executable(c0ntrol ${SOURCES} ${HEADERS})
@@ -44,7 +45,7 @@ if(BUILD_APP)
     )
     if(ENABLE_MEDIAPIPE)
         target_compile_definitions(c0ntrol PRIVATE C0NTROL_ENABLE_MEDIAPIPE=1)
-        target_link_libraries(c0ntrol PRIVATE MediaPipe::HandLandmarker)
+        target_link_libraries(c0ntrol PRIVATE MediaPipe::C0ntrolBridge)
     endif()
 endif()
 
@@ -64,4 +65,16 @@ if(BUILD_TESTING)
     )
     add_core_test(test_one_euro tests/test_one_euro.cpp)
     add_core_test(test_hand_tracking tests/test_hand_tracking.cpp)
+    if(ENABLE_MEDIAPIPE)
+        add_executable(test_mediapipe_hand_tracking_backend
+            tests/test_mediapipe_hand_tracking_backend.cpp
+            src/core/tracking/MediaPipeHandTrackingBackend.cpp
+        )
+        target_include_directories(test_mediapipe_hand_tracking_backend PRIVATE ${CMAKE_SOURCE_DIR})
+        target_link_libraries(test_mediapipe_hand_tracking_backend PRIVATE MediaPipe::C0ntrolBridge)
+        target_compile_definitions(test_mediapipe_hand_tracking_backend PRIVATE
+            C0NTROL_MODEL_PATH="${CMAKE_SOURCE_DIR}/models/hand_landmarker.task")
+        add_test(NAME test_mediapipe_hand_tracking_backend
+                 COMMAND test_mediapipe_hand_tracking_backend)
+    endif()
 endif()

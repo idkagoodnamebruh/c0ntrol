@@ -1,12 +1,19 @@
 # MediaPipe integration research
 
+## Pinned upstream
+
+- `MEDIAPIPE_VERSION=v0.10.26`
+- `MEDIAPIPE_COMMIT_SHA=80ae8afbd03465b0d6d9f9e874f8cacf093d23e9`
+
+The SHA is the official GitHub tag target returned for `refs/tags/v0.10.26`. Phase 2B targets this revision rather than `master`.
+
 ## Official sources consulted
 
-The research scope was restricted to the official [Google AI Hand Landmarker guide](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker), the [MediaPipe repository](https://github.com/google-ai-edge/mediapipe), its [C++ Hand Landmarker header](https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarker.h), [options header](https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarker_options.h), and [result header](https://github.com/google-ai-edge/mediapipe/blob/master/mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarker_result.h). Web retrieval from this sandbox returned HTTP 401/403, so exact upstream revision/build compatibility could not be verified here; links identify the authoritative material that must be pinned before production.
+The research scope was restricted to the official [Google AI Hand Landmarker guide](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker), the [v0.10.26 C++ Hand Landmarker header](https://github.com/google-ai-edge/mediapipe/blob/v0.10.26/mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarker.h), [result header](https://github.com/google-ai-edge/mediapipe/blob/v0.10.26/mediapipe/tasks/cc/vision/hand_landmarker/hand_landmarker_result.h), [landmark containers](https://github.com/google-ai-edge/mediapipe/blob/v0.10.26/mediapipe/tasks/cc/components/containers/landmark.h), [classification containers](https://github.com/google-ai-edge/mediapipe/blob/v0.10.26/mediapipe/tasks/cc/components/containers/classification_result.h), and [Category](https://github.com/google-ai-edge/mediapipe/blob/v0.10.26/mediapipe/tasks/cc/components/containers/category.h). Raw official headers and the GitHub tag API were reachable for verification.
 
 ## API decision
 
-The implementation targets the native **C++ Tasks API** in `mediapipe/tasks/cc/vision/hand_landmarker`. Ownership is RAII: `HandLandmarker::Create(options)` returns a status-or unique owner; destruction/shutdown releases it. Options include model asset path, running mode, `num_hands`, detection/presence/tracking confidence thresholds and (for live stream) a result callback.
+The pinned implementation targets the native **C++ Tasks API** behind a stable project-owned C ABI. `HandLandmarker::Create(options)` returns a status-or unique owner and `Close()` is called explicitly before destruction. `NormalizedLandmarks.landmarks`, `Landmarks.landmarks`, `Classifications.categories`, and optional `Category::category_name` are handled according to the pinned headers.
 
 The result contract supplies per-hand normalized landmarks, world landmarks and categorized handedness with score. Results are copied immediately to c0ntrol domain types; no MediaPipe object escapes the backend.
 
@@ -18,8 +25,8 @@ LIVE_STREAM is the intended later optimization. Its callback executes according 
 
 ## Images and ownership
 
-OpenCV converts BGR to RGB. The backend allocates an owned `mediapipe::ImageFrame` and copies each row respecting source stride and destination `WidthStep`; therefore MediaPipe never retains a pointer into the temporary OpenCV buffer. Expected format is SRGB (three channels).
+OpenCV converts BGR to RGB. The pinned Bazel bridge allocates an owned `mediapipe::ImageFrame` and copies each row respecting source stride and destination `WidthStep`; therefore MediaPipe never retains a pointer into the temporary OpenCV buffer. Expected format is SRGB (three channels).
 
 ## Build boundary
 
-MediaPipe is normally built with its upstream Bazel graph. This repository remains CMake-based and expects a separately version-pinned Hand Landmarker library plus official include tree through an imported target. No source vendoring or implicit download occurs. The exact upstream revision, transitive link closure and produced artifact remain environment-blocked and must be validated before enabling the option.
+MediaPipe is built with its upstream Bazel graph. This repository remains CMake-based and consumes only the project-owned shared C bridge produced by Bazel; that target depends on the official Hand Landmarker target so Bazel owns the transitive closure. CMake imports the concrete bridge artifact and needs no MediaPipe include tree. No source vendoring or implicit download occurs. Building that artifact remains environment-blocked and must be validated before enabling the option.

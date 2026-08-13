@@ -7,3 +7,5 @@
 Hand order from MediaPipe is explicitly **not stable identity**. Persistent IDs are future work. The temporary legacy adapter deterministically prefers RIGHT, otherwise the first hand, and returns empty landmarks for invalid/zero-hand frames. This selection is compatibility policy, not permanent tracking architecture.
 
 `TrackingClock` uses `steady_clock`, forces strictly increasing microseconds, and allocates frame IDs from zero. `HandTrackingFrame` is declared and registered through the Qt-only bridge for raw worker→GUI observation.
+
+The concrete VIDEO backend converts microseconds to milliseconds and enforces strict increase even when two microsecond values truncate to the same millisecond. Its C ABI is an implementation boundary only and never enters domain/GUI types.
