@@ -4,8 +4,10 @@
 #include <cmath>
 
 VisionWorker::VisionWorker(QObject* parent)
-    : QObject(parent), m_running(false), m_cameraIndex(0) {
+    : QObject(parent), m_cameraIndex(0), m_frameTimer(new QTimer(this)), m_mockTime(0.0) {
     m_filter = std::make_unique<OneEuroFilter>();
+    m_frameTimer->setInterval(33);
+    connect(m_frameTimer, &QTimer::timeout, this, &VisionWorker::processFrame);
 }
 
 VisionWorker::~VisionWorker() {
@@ -17,13 +19,15 @@ void VisionWorker::setCameraIndex(int index) {
 }
 
 void VisionWorker::start() {
-    m_running = true;
+    if (m_frameTimer->isActive()) {
+        return;
+    }
+
     m_cap.open(m_cameraIndex);
 
     if (!m_cap.isOpened()) {
         qWarning() << "[ERROR] No se pudo abrir la cámara index:" << m_cameraIndex;
         emit errorOccurred("No se pudo acceder a la cámara seleccionada.");
-        m_running = false;
         return;
     }
 
@@ -31,26 +35,26 @@ void VisionWorker::start() {
     m_cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
     qInfo() << "[INFO] Hilo de capturas iniciado exitosamente.";
-    processLoop();
+    m_frameTimer->start();
 }
 
 void VisionWorker::stop() {
-    m_running = false;
+    m_frameTimer->stop();
     if (m_cap.isOpened()) {
         m_cap.release();
     }
 }
 
-void VisionWorker::processLoop() {
-    cv::Mat frame;
-    double t = 0.0;
+void VisionWorker::processFrame() {
+    if (!m_cap.isOpened()) {
+        return;
+    }
 
-    while (m_running) {
-        m_cap >> frame;
-        if (frame.empty()) {
-            QThread::msleep(10);
-            continue;
-        }
+    cv::Mat frame;
+    m_cap >> frame;
+    if (frame.empty()) {
+        return;
+    }
 
         // Convertir BGR OpenCV a QImage RGB888 para Qt QPainter
         cv::Mat rgbFrame;
@@ -59,12 +63,10 @@ void VisionWorker::processLoop() {
         QImage image(rgbFrame.data, rgbFrame.cols, rgbFrame.rows, rgbFrame.step, QImage::Format_RGB888);
 
         // Generar landmarks suavizados con OneEuroFilter
-        Landmarks landmarks = extractLandmarksMock(t);
-        t += 0.033;
+    Landmarks landmarks = extractLandmarksMock(m_mockTime);
+    m_mockTime += 0.033;
 
-        emit frameProcessed(image.copy(), landmarks);
-        QThread::msleep(33); // ~30 FPS target
-    }
+    emit frameProcessed(image.copy(), landmarks);
 }
 
 Landmarks VisionWorker::extractLandmarksMock(double t) {

@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QDebug>
 #include <QMetaObject>
+#include "src/core/qt/QtMetaTypes.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), m_thread(nullptr), m_worker(nullptr),
@@ -38,9 +39,14 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupWorker() {
+    // Required for the queued VisionWorker -> GUI connection. The declaration
+    // lives in a Qt-only bridge so core tests remain independent of Qt.
+    qRegisterMetaType<Landmarks>("Landmarks");
+
     m_thread = new QThread(this);
     m_worker = new VisionWorker();
     m_worker->moveToThread(m_thread);
+    connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
 
     connect(m_thread, &QThread::started, m_worker, &VisionWorker::start);
     connect(m_worker, &VisionWorker::frameProcessed, this, &MainWindow::onFrameProcessed);
