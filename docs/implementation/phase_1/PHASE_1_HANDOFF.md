@@ -1,9 +1,18 @@
 # Handoff — Fase 1
 
 - **Rama:** `implementation/phase-1-foundation`
-- **SHA base Fase 0:** `b3f888ede9720e717ee27ef33ce656233188dbc3`
-- **SHA final:** se completa con el commit de entrega; consultar `git rev-parse HEAD`.
+- **Base remota Fase 0:** `4ab8a7cb6a3c33eebc99365ffc2009d2e17141c2`
+- **Commit funcional Fase 1:** `a30fdacb88081296f724737fb217ed472ab20e75`
+- **Head remoto de auditoría/publicación Fase 1:** `60a7517d40b8a4545c2c72c69526e17c2113715f`
 - **Código original auditado:** `554c3afffaa7d2a1287bd675afb56daa40d0d086`
+
+## Estado de cierre
+
+- **Fase 1:** COMPLETE / AUDITED
+- **Core tests:** 5/5 PASS
+- **Runtime application test:** NOT YET VALIDATED
+- **MediaPipe:** NOT STARTED
+- **Phase 2:** NOT STARTED
 
 ## Archivos modificados
 

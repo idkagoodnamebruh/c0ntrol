@@ -8,13 +8,29 @@ idkagoodnamebruh/c0ntrol
 
 `4ab8a7cb6a3c33eebc99365ffc2009d2e17141c2`
 
-## Phase 1 workspace commit
+## Original/local workspace reference
 
 `ac45693e149da061e37a15d487fc0138c7b06a84`
 
+## Remote functional commit
+
+`a30fdacb88081296f724737fb217ed472ab20e75`
+
+## Remote audit head
+
+`60a7517d40b8a4545c2c72c69526e17c2113715f`
+
 ## Important note
 
-Direct shell access to GitHub from the Codex sandbox returned HTTP 403. Therefore remote ancestry could not be verified through `git fetch`. Publication is being performed using the native Codex/GitHub PR workflow.
+Direct shell access to GitHub from the Codex sandbox returned HTTP 403. Therefore remote ancestry could not be verified through `git fetch`. Publication was performed using the native Codex/GitHub PR workflow. The original local workspace reference changed when the functional commit was reconstructed and published on the correct remote Phase 0 base; `ac45693e149da061e37a15d487fc0138c7b06a84` is not presented as a remote commit.
+
+## Closure status
+
+- **Phase 1:** COMPLETE / AUDITED
+- **Core tests:** 5/5 PASS
+- **Runtime application test:** NOT YET VALIDATED
+- **MediaPipe:** NOT STARTED
+- **Phase 2:** NOT STARTED
 
 ## Files changed
 
