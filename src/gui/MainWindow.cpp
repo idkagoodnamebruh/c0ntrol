@@ -42,6 +42,7 @@ void MainWindow::setupWorker() {
     // Required for the queued VisionWorker -> GUI connection. The declaration
     // lives in a Qt-only bridge so core tests remain independent of Qt.
     qRegisterMetaType<Landmarks>("Landmarks");
+    qRegisterMetaType<HandTrackingFrame>("HandTrackingFrame");
 
     m_thread = new QThread(this);
     m_worker = new VisionWorker();

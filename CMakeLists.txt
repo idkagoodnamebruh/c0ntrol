@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 project(c0ntrol VERSION 1.0 LANGUAGES CXX)
 
 option(BUILD_APP "Build c0ntrol desktop application" ON)
+option(ENABLE_MEDIAPIPE "Build the MediaPipe Hand Landmarker backend" OFF)
+set(MEDIAPIPE_ROOT "" CACHE PATH "MediaPipe source/install root")
+set(MEDIAPIPE_HAND_LANDMARKER_LIBRARY "" CACHE FILEPATH "Hand Landmarker C++ library")
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -18,6 +21,19 @@ if(BUILD_APP)
     file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
     file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "src/*.h")
 
+    if(NOT ENABLE_MEDIAPIPE)
+        list(FILTER SOURCES EXCLUDE REGEX "MediaPipeHandTrackingBackend\\.cpp$")
+    else()
+        if(NOT MEDIAPIPE_ROOT OR NOT MEDIAPIPE_HAND_LANDMARKER_LIBRARY)
+            message(FATAL_ERROR "ENABLE_MEDIAPIPE requires MEDIAPIPE_ROOT and MEDIAPIPE_HAND_LANDMARKER_LIBRARY")
+        endif()
+        add_library(MediaPipe::HandLandmarker UNKNOWN IMPORTED)
+        set_target_properties(MediaPipe::HandLandmarker PROPERTIES
+            IMPORTED_LOCATION "${MEDIAPIPE_HAND_LANDMARKER_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${MEDIAPIPE_ROOT}"
+        )
+    endif()
+
     add_executable(c0ntrol ${SOURCES} ${HEADERS})
     target_include_directories(c0ntrol PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(c0ntrol PRIVATE
@@ -26,6 +42,10 @@ if(BUILD_APP)
         Qt6::Widgets
         ${OpenCV_LIBS}
     )
+    if(ENABLE_MEDIAPIPE)
+        target_compile_definitions(c0ntrol PRIVATE C0NTROL_ENABLE_MEDIAPIPE=1)
+        target_link_libraries(c0ntrol PRIVATE MediaPipe::HandLandmarker)
+    endif()
 endif()
 
 if(BUILD_TESTING)
@@ -43,4 +63,5 @@ if(BUILD_TESTING)
         src/core/gestures/GestureClassifier.cpp
     )
     add_core_test(test_one_euro tests/test_one_euro.cpp)
+    add_core_test(test_hand_tracking tests/test_hand_tracking.cpp)
 endif()

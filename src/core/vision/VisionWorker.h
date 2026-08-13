@@ -10,6 +10,8 @@
 #include "src/core/gestures/Landmarks.h"
 #include "src/core/filters/OneEuroFilter.h"
 #include "src/core/qt/QtMetaTypes.h"
+#include "src/core/tracking/IHandTrackingBackend.h"
+#include "src/core/tracking/TrackingClock.h"
 
 class VisionWorker : public QObject {
     Q_OBJECT
@@ -26,17 +28,16 @@ public slots:
 
 signals:
     void frameProcessed(const QImage& frame, const Landmarks& landmarks);
+    void trackingFrameProcessed(const HandTrackingFrame& trackingFrame);
     void errorOccurred(const QString& errorMessage);
 
 private:
     void processFrame();
-    Landmarks extractLandmarksMock(double t);
-
     int m_cameraIndex;
     cv::VideoCapture m_cap;
-    std::unique_ptr<OneEuroFilter> m_filter;
+    std::unique_ptr<IHandTrackingBackend> m_trackingBackend;
     QTimer* m_frameTimer;
-    double m_mockTime;
+    TrackingClock m_trackingClock;
 };
 
 #endif // VISIONWORKER_H
