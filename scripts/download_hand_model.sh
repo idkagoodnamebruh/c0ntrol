@@ -32,6 +32,7 @@ download_if_missing() {
         fi
     fi
 }
+<<<<<<< HEAD
 
 # 1. Hand Landmarker Task
 download_if_missing "$MODELS_DIR/hand_landmarker.task" \
@@ -51,3 +52,23 @@ download_if_missing "$MODELS_DIR/hand_landmark.onnx" \
 
 echo "=== Proceso de modelos completado ==="
 
+=======
+
+# 1. Hand Landmarker Task
+download_if_missing "$MODELS_DIR/hand_landmarker.task" \
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+
+# 2. Hand Detector TFLite
+download_if_missing "$MODELS_DIR/hand_detector.tflite" \
+    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_detector.tflite"
+
+# 3. Hand Landmarks Detector TFLite
+download_if_missing "$MODELS_DIR/hand_landmarks_detector.tflite" \
+    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_landmark_full.tflite"
+
+# 4. Hand Landmark ONNX
+download_if_missing "$MODELS_DIR/hand_landmark.onnx" \
+    "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/hand_landmark/model/hand_landmark.onnx"
+
+echo "=== Proceso de modelos completado ==="
+>>>>>>> 2c1e8ff3a1ab1c4b544bd35f532e84d94ab23bd3
