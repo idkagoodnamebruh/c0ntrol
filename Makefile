@@ -1,6 +1,7 @@
 # Makefile para compilación rápida con CMake y Qt6/OpenCV
 
 BUILD_DIR = build
+TEST_BUILD_DIR = build-tests
 TARGET = $(BUILD_DIR)/c0ntrol
 
 .PHONY: all clean rebuild run test help
@@ -14,15 +15,17 @@ $(TARGET): | $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. && $(MAKE) -j$$(nproc)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(TEST_BUILD_DIR)
 
 rebuild: clean all
 
 run: $(TARGET)
 	./$(TARGET)
 
-test: | $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake -DBUILD_TESTS=ON .. && $(MAKE) -j$$(nproc) && ctest --output-on-failure
+test:
+	cmake -S . -B $(TEST_BUILD_DIR) -DBUILD_APP=OFF -DBUILD_TESTING=ON
+	cmake --build $(TEST_BUILD_DIR) --parallel $$(nproc)
+	ctest --test-dir $(TEST_BUILD_DIR) --output-on-failure
 
 help:
 	@echo "Opciones disponibles:"

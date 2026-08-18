@@ -9,6 +9,7 @@
 #include <algorithm>
 #include "src/core/gestures/Landmarks.h"
 #include "src/core/gestures/GestureClassifier.h"
+#include "src/core/qt/QtMetaTypes.h"
 
 class CursorController : public QObject {
     Q_OBJECT
