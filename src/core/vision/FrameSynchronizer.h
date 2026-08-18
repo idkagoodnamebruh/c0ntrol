@@ -2,6 +2,7 @@
 #define FRAMESYNCHRONIZER_H
 
 #include <chrono>
+#include <thread>
 
 class FrameSynchronizer {
 public:
