@@ -90,6 +90,19 @@ if(BUILD_TESTING)
         src/core/gestures/GestureStateMachine.cpp
         src/core/gestures/GesturePipeline.cpp
     )
+    add_core_test(test_pointer_mapper
+        tests/test_pointer_mapper.cpp
+        src/core/actions/PointerMapper.cpp
+    )
+    add_core_test(test_action_dispatcher
+        tests/test_action_dispatcher.cpp
+        src/core/actions/ActionDispatcher.cpp
+        src/core/actions/PointerMapper.cpp
+    )
+    add_core_test(test_windows_pointer_math
+        tests/test_windows_pointer_math.cpp
+        src/platform/windows/WindowsPointerMath.cpp
+    )
     add_core_test(test_one_euro tests/test_one_euro.cpp)
     add_core_test(test_landmark_filter_bank
         tests/test_landmark_filter_bank.cpp
