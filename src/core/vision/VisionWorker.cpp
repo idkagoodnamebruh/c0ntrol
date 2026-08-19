@@ -27,6 +27,10 @@ void VisionWorker::setCameraIndex(int index) {
     m_cameraIndex = index;
 }
 
+void VisionWorker::setFilteringEnabled(bool enabled) {
+    m_landmarkFilterBank.setEnabled(enabled);
+}
+
 void VisionWorker::start() {
     if (m_frameTimer->isActive()) {
         return;
@@ -50,6 +54,7 @@ void VisionWorker::start() {
         return;
     }
 
+    m_landmarkFilterBank.reset();
     qInfo() << "[INFO] Hilo de capturas iniciado exitosamente.";
     m_frameTimer->start();
 }
@@ -57,6 +62,7 @@ void VisionWorker::start() {
 void VisionWorker::stop() {
     m_frameTimer->stop();
     m_trackingBackend->shutdown();
+    m_landmarkFilterBank.reset();
     if (m_cap.isOpened()) {
         m_cap.release();
     }
@@ -83,14 +89,21 @@ void VisionWorker::processFrame() {
     const auto frameId = m_trackingClock.nextFrameId();
     const RgbImageView imageView{rgbFrame.data, rgbFrame.cols, rgbFrame.rows,
                                  static_cast<std::size_t>(rgbFrame.step)};
-    HandTrackingFrame trackingFrame = m_trackingBackend->process(imageView, timestampUs, frameId);
-    if (!trackingFrame.valid && !m_trackingBackend->lastError().empty()) {
+    HandTrackingFrame rawTrackingFrame =
+        m_trackingBackend->process(imageView, timestampUs, frameId);
+    if (!rawTrackingFrame.valid && !m_trackingBackend->lastError().empty()) {
         emit errorOccurred(QString::fromStdString(m_trackingBackend->lastError()));
     }
-    // Temporary compatibility policy: prefer a RIGHT hand, otherwise the first.
-    // The raw, unfiltered tracking contract is emitted separately.
-    Landmarks landmarks = toLegacyLandmarks(trackingFrame);
 
-    emit trackingFrameProcessed(trackingFrame);
+    // Keep the backend observation intact for debugging and future consumers.
+    emit trackingFrameProcessed(rawTrackingFrame);
+
+    HandTrackingFrame filteredTrackingFrame =
+        m_landmarkFilterBank.process(rawTrackingFrame);
+    emit filteredTrackingFrameProcessed(filteredTrackingFrame);
+
+    // Temporary compatibility policy: prefer a RIGHT hand, otherwise the first.
+    // The legacy gesture/GUI path consumes the stabilized observation.
+    Landmarks landmarks = toLegacyLandmarks(filteredTrackingFrame);
     emit frameProcessed(image.copy(), landmarks);
 }
