@@ -5,8 +5,7 @@
 #include "src/core/qt/QtMetaTypes.h"
 
 MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent), m_thread(nullptr), m_worker(nullptr),
-      m_currentGesture(GestureType::NONE) {
+    : QMainWindow(parent), m_thread(nullptr), m_worker(nullptr) {
 
     m_centralWidget = new QWidget(this);
     m_layout = new QVBoxLayout(m_centralWidget);
@@ -50,6 +49,8 @@ void MainWindow::setupWorker() {
     connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
 
     connect(m_thread, &QThread::started, m_worker, &VisionWorker::start);
+    connect(m_worker, &VisionWorker::filteredTrackingFrameProcessed, this,
+            &MainWindow::onFilteredTrackingFrameProcessed);
     connect(m_worker, &VisionWorker::frameProcessed, this, &MainWindow::onFrameProcessed);
     connect(m_worker, &VisionWorker::errorOccurred, this, [](const QString& err){
         qWarning() << "[WORKER ERROR]" << err;
@@ -59,20 +60,7 @@ void MainWindow::setupWorker() {
 }
 
 void MainWindow::onFrameProcessed(const QImage& frame, const Landmarks& landmarks) {
-    m_currentGesture = GestureClassifier::classify(landmarks);
-    m_cursorCtrl->onLandmarksUpdated(landmarks, m_currentGesture);
-
-    QString gestureStr = "NONE";
-    switch (m_currentGesture) {
-        case GestureType::POINTING: gestureStr = "POINTING"; break;
-        case GestureType::PINCH: gestureStr = "PINCH"; break;
-        case GestureType::PALM_OPEN: gestureStr = "PALM_OPEN"; break;
-        case GestureType::FIST: gestureStr = "FIST"; break;
-        case GestureType::VICTORY: gestureStr = "VICTORY"; break;
-        default: break;
-    }
-
-    m_devWidget->updateTelemetry(30.0, gestureStr, landmarks);
+    m_devWidget->updateTelemetry(30.0, m_currentGestureLabel, landmarks);
 
     // Dibujar landmarks sobre la imagen de cámara
     QImage overlayFrame = frame.copy();
@@ -87,4 +75,53 @@ void MainWindow::onFrameProcessed(const QImage& frame, const Landmarks& landmark
     painter.end();
 
     m_videoLabel->setPixmap(QPixmap::fromImage(overlayFrame));
+}
+
+void MainWindow::onFilteredTrackingFrameProcessed(
+    const HandTrackingFrame& trackingFrame) {
+    const GesturePipelineResult result = m_gesturePipeline.process(trackingFrame);
+
+    const GestureObservation* selected = nullptr;
+    for (std::size_t i = 0; i < result.observationCount; ++i) {
+        const auto& observation = result.observations[i];
+        if (selected == nullptr || observation.handedness == Handedness::RIGHT)
+            selected = &observation;
+    }
+
+    m_currentGestureLabel = "NONE";
+    if (selected != nullptr) {
+        switch (selected->pose) {
+            case StaticGesture::OPEN_HAND:
+                m_currentGestureLabel = "OPEN_HAND";
+                break;
+            case StaticGesture::POINTING:
+                m_currentGestureLabel = selected->pinchActive
+                    ? "POINTING+PINCH" : "POINTING";
+                break;
+            case StaticGesture::PINCH:
+                m_currentGestureLabel = "PINCH";
+                break;
+            default:
+                break;
+        }
+        m_cursorCtrl->onPointerUpdated(selected->pointerPoint,
+                                       selected->pointerActive);
+    } else {
+        m_cursorCtrl->onPointerUpdated({}, false);
+    }
+
+    for (std::size_t i = 0; i < result.events.count; ++i) {
+        const GestureEvent& event = result.events.events[i];
+        const char* eventName = "POINTER_INACTIVE";
+        switch (event.type) {
+            case GestureEventType::POINTER_ACTIVE: eventName = "POINTER_ACTIVE"; break;
+            case GestureEventType::POINTER_INACTIVE: eventName = "POINTER_INACTIVE"; break;
+            case GestureEventType::PINCH_BEGIN: eventName = "PINCH_BEGIN"; break;
+            case GestureEventType::PINCH_END: eventName = "PINCH_END"; break;
+            case GestureEventType::PINCH_CANCEL: eventName = "PINCH_CANCEL"; break;
+        }
+        qInfo() << "[GESTURE EVENT]" << eventName
+                << (event.handedness == Handedness::LEFT ? "LEFT" : "RIGHT")
+                << event.timestampUs;
+    }
 }
