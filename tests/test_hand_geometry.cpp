@@ -1,39 +1,29 @@
 #include <iostream>
-#include <cassert>
-#include "src/core/gestures/GestureClassifier.h"
 
-void testGestureClassification() {
-    Landmarks lm;
-    lm.points.resize(21);
+#include "tests/GestureTestFixtures.h"
+#include "src/core/gestures/GestureEngine.h"
 
-    // Configurar coordenadas para simular PINCH (pulgar 4 e índice 8 muy cerca)
-    lm.points[4] = Point3D(0.50, 0.50, 0.0);
-    lm.points[8] = Point3D(0.51, 0.51, 0.0);
-
-    GestureType type = GestureClassifier::classify(lm);
-    assert(type == GestureType::PINCH);
-
-    // Configurar POINTING
-    lm.points[4] = Point3D(0.20, 0.50, 0.0);
-    lm.points[8] = Point3D(0.50, 0.20, 0.0); // Dedo índice extendido hacia arriba
-    lm.points[6] = Point3D(0.50, 0.40, 0.0);
-    
-    lm.points[12] = Point3D(0.60, 0.60, 0.0); // Medio doblado
-    lm.points[10] = Point3D(0.60, 0.50, 0.0);
-
-    lm.points[16] = Point3D(0.70, 0.60, 0.0); // Anular doblado
-    lm.points[14] = Point3D(0.70, 0.50, 0.0);
-
-    lm.points[20] = Point3D(0.80, 0.60, 0.0); // Meñique doblado
-    lm.points[18] = Point3D(0.80, 0.50, 0.0);
-
-    type = GestureClassifier::classify(lm);
-    assert(type == GestureType::POINTING);
-
-    std::cout << "[PASS] testGestureClassification" << std::endl;
-}
+using namespace gesture_test;
 
 int main() {
-    testGestureClassification();
+    HandFeatureExtractor extractor;
+    GestureEngine engine;
+    const HandFeatures open = extractor.extract(makeOpenHand());
+    require(open.valid, "open-hand geometry is valid");
+    require(engine.observe(open, 1, 1).pose == StaticGesture::OPEN_HAND,
+            "open hand is classified from joint geometry");
+
+    auto pointingHand = makePointingHand();
+    const HandFeatures pointing = extractor.extract(pointingHand);
+    require(pointing.valid && pointing.indexExtended,
+            "pointing index remains extended");
+    require(engine.observe(pointing, 2, 2).pose == StaticGesture::POINTING,
+            "pointing pose is classified from curls");
+
+    setPinchRatio(pointingHand, 0.20);
+    const auto pinch = engine.observe(extractor.extract(pointingHand), 3, 3);
+    require(pinch.pose == StaticGesture::POINTING && pinch.pinchActive,
+            "pinch is an independent signal while pointing");
+    std::cout << "[PASS] test_hand_geometry\n";
     return 0;
 }
