@@ -56,7 +56,10 @@ if(BUILD_TESTING)
         add_test(NAME ${target} COMMAND ${target})
     endfunction()
 
-    add_core_test(test_display_transform tests/test_display_transform.cpp)
+    add_core_test(test_display_transform
+        tests/test_display_transform.cpp
+        src/core/actions/PointerMapper.cpp
+    )
     add_core_test(test_dynamic_gestures tests/test_dynamic_gestures.cpp)
     add_core_test(test_frame_sync tests/test_frame_sync.cpp)
     add_core_test(test_hand_geometry

@@ -5,9 +5,11 @@
 #include <QThread>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <memory>
+#include "src/core/actions/ActionDispatcher.h"
 #include "src/core/vision/VisionWorker.h"
 #include "src/core/gestures/GesturePipeline.h"
-#include "src/core/actions/CursorController.h"
+#include "src/platform/SystemInputBackendFactory.h"
 #include "src/gui/DeveloperModeWidget.h"
 
 class MainWindow : public QMainWindow {
@@ -31,8 +33,9 @@ private:
 
     QThread* m_thread;
     VisionWorker* m_worker;
-    CursorController* m_cursorCtrl;
     GesturePipeline m_gesturePipeline;
+    std::unique_ptr<ISystemInputBackend> m_inputBackend;
+    std::unique_ptr<ActionDispatcher> m_actionDispatcher;
     QString m_currentGestureLabel{"NONE"};
 };
 
