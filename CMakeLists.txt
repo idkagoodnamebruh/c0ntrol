@@ -61,7 +61,24 @@ if(BUILD_TESTING)
     add_core_test(test_frame_sync tests/test_frame_sync.cpp)
     add_core_test(test_hand_geometry
         tests/test_hand_geometry.cpp
-        src/core/gestures/GestureClassifier.cpp
+        src/core/gestures/HandFeatureExtractor.cpp
+        src/core/gestures/GestureEngine.cpp
+    )
+    add_core_test(test_hand_features
+        tests/test_hand_features.cpp
+        src/core/gestures/HandFeatureExtractor.cpp
+        src/core/gestures/GestureEngine.cpp
+    )
+    add_core_test(test_gesture_state_machine
+        tests/test_gesture_state_machine.cpp
+        src/core/gestures/GestureStateMachine.cpp
+    )
+    add_core_test(test_gesture_pipeline
+        tests/test_gesture_pipeline.cpp
+        src/core/gestures/HandFeatureExtractor.cpp
+        src/core/gestures/GestureEngine.cpp
+        src/core/gestures/GestureStateMachine.cpp
+        src/core/gestures/GesturePipeline.cpp
     )
     add_core_test(test_one_euro tests/test_one_euro.cpp)
     add_core_test(test_landmark_filter_bank

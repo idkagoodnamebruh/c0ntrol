@@ -8,7 +8,6 @@
 #include <QRect>
 #include <algorithm>
 #include "src/core/gestures/Landmarks.h"
-#include "src/core/gestures/GestureClassifier.h"
 #include "src/core/qt/QtMetaTypes.h"
 
 class CursorController : public QObject {
@@ -21,7 +20,7 @@ public:
     bool isEnabled() const;
 
 public slots:
-    void onLandmarksUpdated(const Landmarks& landmarks, GestureType gesture);
+    void onPointerUpdated(const Point3D& pointer, bool active);
     void moveCursor(int x, int y);
     void performClick(Qt::MouseButton button);
 
