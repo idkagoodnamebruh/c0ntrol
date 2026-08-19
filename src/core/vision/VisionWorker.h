@@ -8,7 +8,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "src/core/gestures/Landmarks.h"
-#include "src/core/filters/OneEuroFilter.h"
+#include "src/core/filters/LandmarkFilterBank.h"
 #include "src/core/qt/QtMetaTypes.h"
 #include "src/core/tracking/IHandTrackingBackend.h"
 #include "src/core/tracking/TrackingClock.h"
@@ -21,14 +21,17 @@ public:
     ~VisionWorker();
 
     void setCameraIndex(int index);
+    bool filteringEnabled() const { return m_landmarkFilterBank.enabled(); }
 
 public slots:
     void start();
     void stop();
+    void setFilteringEnabled(bool enabled);
 
 signals:
     void frameProcessed(const QImage& frame, const Landmarks& landmarks);
     void trackingFrameProcessed(const HandTrackingFrame& trackingFrame);
+    void filteredTrackingFrameProcessed(const HandTrackingFrame& trackingFrame);
     void errorOccurred(const QString& errorMessage);
 
 private:
@@ -38,6 +41,7 @@ private:
     std::unique_ptr<IHandTrackingBackend> m_trackingBackend;
     QTimer* m_frameTimer;
     TrackingClock m_trackingClock;
+    LandmarkFilterBank m_landmarkFilterBank;
 };
 
 #endif // VISIONWORKER_H

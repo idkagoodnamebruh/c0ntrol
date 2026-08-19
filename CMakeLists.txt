@@ -64,6 +64,10 @@ if(BUILD_TESTING)
         src/core/gestures/GestureClassifier.cpp
     )
     add_core_test(test_one_euro tests/test_one_euro.cpp)
+    add_core_test(test_landmark_filter_bank
+        tests/test_landmark_filter_bank.cpp
+        src/core/filters/LandmarkFilterBank.cpp
+    )
     add_core_test(test_hand_tracking tests/test_hand_tracking.cpp)
     if(ENABLE_MEDIAPIPE)
         add_executable(test_mediapipe_hand_tracking_backend

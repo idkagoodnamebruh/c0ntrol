@@ -9,10 +9,6 @@ struct AppSettings {
     int frameWidth = 640;
     int frameHeight = 480;
     
-    // Parámetros OneEuroFilter
-    double filterMinCutoff = 1.0;
-    double filterBeta = 0.007;
-
     // Umbrales de Clasificación de Gestos
     double pinchThreshold = 0.05;
     double swipeDistanceThreshold = 0.15;
