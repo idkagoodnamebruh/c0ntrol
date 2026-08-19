@@ -76,5 +76,15 @@ if(BUILD_TESTING)
             C0NTROL_MODEL_PATH="${CMAKE_SOURCE_DIR}/models/hand_landmarker.task")
         add_test(NAME test_mediapipe_hand_tracking_backend
                  COMMAND test_mediapipe_hand_tracking_backend)
+        add_executable(test_mediapipe_real_hand
+            tests/test_mediapipe_real_hand.cpp
+            src/core/tracking/MediaPipeHandTrackingBackend.cpp
+        )
+        target_include_directories(test_mediapipe_real_hand PRIVATE ${CMAKE_SOURCE_DIR})
+        target_link_libraries(test_mediapipe_real_hand PRIVATE MediaPipe::C0ntrolBridge)
+        target_compile_definitions(test_mediapipe_real_hand PRIVATE
+            C0NTROL_MODEL_PATH="${CMAKE_SOURCE_DIR}/models/hand_landmarker.task"
+            C0NTROL_HAND_ASSET_PATH="${CMAKE_SOURCE_DIR}/tests/assets/hand_test.ppm")
+        add_test(NAME test_mediapipe_real_hand COMMAND test_mediapipe_real_hand)
     endif()
 endif()

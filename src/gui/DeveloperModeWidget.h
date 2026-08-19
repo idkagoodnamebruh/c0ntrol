@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QTextEdit>
 #include "src/core/gestures/Landmarks.h"
+#include "src/core/qt/QtMetaTypes.h"
 
 class DeveloperModeWidget : public QWidget {
     Q_OBJECT

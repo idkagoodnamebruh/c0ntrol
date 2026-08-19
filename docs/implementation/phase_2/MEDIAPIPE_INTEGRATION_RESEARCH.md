@@ -29,4 +29,6 @@ OpenCV converts BGR to RGB. The pinned Bazel bridge allocates an owned `mediapip
 
 ## Build boundary
 
-MediaPipe is built with its upstream Bazel graph. This repository remains CMake-based and consumes only the project-owned shared C bridge produced by Bazel; that target depends on the official Hand Landmarker target so Bazel owns the transitive closure. CMake imports the concrete bridge artifact and needs no MediaPipe include tree. No source vendoring or implicit download occurs. Building that artifact remains environment-blocked and must be validated before enabling the option.
+MediaPipe is built with its upstream Bazel graph. This repository remains CMake-based and consumes only the project-owned shared C bridge produced by Bazel; that target depends on the official Hand Landmarker target so Bazel owns the transitive closure. CMake imports the concrete bridge artifact and needs no MediaPipe include tree. No source vendoring or implicit download occurs.
+
+Phase 2C validated this boundary using the official tag tarball. Bazelisk selected the checkout's Bazel 6.5.0, and the bridge built after supplying hermetic Python 3.12 plus the EGL/GLES and OpenCV development inputs expected by upstream. No dependency revision changed.

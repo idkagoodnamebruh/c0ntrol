@@ -2,8 +2,10 @@ licenses(["notice"])
 
 cc_binary(
     name = "libc0ntrol_mediapipe_bridge.so",
-    srcs = ["c0ntrol_mediapipe_bridge.cc"],
-    hdrs = ["c0ntrol_mediapipe_bridge.h"],
+    srcs = [
+        "c0ntrol_mediapipe_bridge.cc",
+        "c0ntrol_mediapipe_bridge.h",
+    ],
     linkshared = True,
     visibility = ["//visibility:public"],
     deps = [

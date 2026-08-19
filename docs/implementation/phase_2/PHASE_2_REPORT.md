@@ -6,6 +6,6 @@ The MediaPipe backend targets Hand Landmarker VIDEO mode, validates the model pa
 
 Phase 2B corrects the official wrapper access, pins MediaPipe v0.10.26/`80ae8afb`, adds a Bazel-built shared C bridge with its transitive closure, explicit `Close()`, monotonic VIDEO milliseconds, filesystem error handling, and a headless integration target independent of Qt/OpenCV.
 
-This phase remains **PARTIAL / ENVIRONMENT_BLOCKED**: the pinned MediaPipe/Bazel artifact was unavailable, so the bridge/backend were not compiled or run and real landmarks cannot be claimed. Mock/default fallback is explicit. The model bundle structure was validated, not its `Create`/inference behavior.
+Phase 2C closes the previous environment block: official pinned source was obtained by codeload tarball, the real Bazel bridge compiled, both backend integration tests passed, the model was accepted by `Create`, and the official real-hand asset produced one valid hand with 21 normalized and world landmarks plus handedness. The MediaPipe-enabled desktop application also builds. Phase 2 is therefore **COMPLETE**; camera runtime remains unavailable and R-025 remains open.
 
 OneEuro mathematics, GestureClassifier, FSM, dynamic gestures and OS input were not changed. Six headless tests pass. See the research/build/test/risk documents for limitations.
