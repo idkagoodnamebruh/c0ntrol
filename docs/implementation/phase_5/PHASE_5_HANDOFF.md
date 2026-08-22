@@ -16,12 +16,14 @@ or persistent settings must configure this path, not add another mapper.
 
 ## Required follow-up before claiming Windows support
 
-1. Compile the Windows backend with a real Windows SDK/toolchain.
-2. Run an explicit, manual/opt-in test in a controlled app-owned window.
-3. Verify virtual desktop edges, monitors with negative origins and mixed DPI.
-4. Verify SendInput failure reporting against higher-integrity/UIPI targets.
-5. Restore the original cursor position and guarantee UP during every test.
+The backend now compiles with MSVC, links with `user32` and passes the 14-test
+Windows headless suite. Remaining native follow-up is:
 
-Do not put native input into normal CTest. R-013 stays OPEN and R-015 PARTIAL
-until this validation exists. R-023 is resolved. Linux/Wayland input and Phase 6
-were not started.
+1. Run an explicit, manual/opt-in test in a controlled app-owned window.
+2. Verify virtual desktop edges, monitors with negative origins and mixed DPI.
+3. Verify SendInput failure reporting against higher-integrity/UIPI targets.
+4. Restore the original cursor position and guarantee UP during every test.
+
+Do not put native input into normal CTest. R-013 is PARTIALLY_RESOLVED and R-015
+remains PARTIAL until native validation exists. R-023 is resolved.
+Linux/Wayland input and Phase 6 were not started.

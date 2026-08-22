@@ -5,10 +5,10 @@
 - R-010 — RESOLVED (Phase 4), GestureEngine unchanged.
 - R-011 — RESOLVED (Phase 4), normalized pinch unchanged.
 - R-012 — RESOLVED (Phase 4), GestureStateMachine unchanged.
-- R-013 — OPEN. The Windows `SendInput` backend is implemented, but no Windows
-  compiler/session was available and Linux native input is intentionally absent.
-  It cannot honestly be marked partially resolved until Windows build/native
-  integration is validated.
+- R-013 — PARTIALLY_RESOLVED. The Windows `SendInput` implementation now
+  compiles with MSVC and links with `user32`, and all 14 Windows headless tests
+  pass. Native SendInput execution remains unvalidated and a Linux native input
+  backend is intentionally absent.
 - R-015 — PARTIAL. Virtual-desktop origins/dimensions, mirrors, active regions
   and negative-origin math are implemented/tested. Real mixed-DPI/multimonitor
   Windows behavior remains unvalidated.

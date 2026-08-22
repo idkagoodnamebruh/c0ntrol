@@ -36,7 +36,15 @@ after a post-DOWN MOVE failure. No test calls native input.
 
 - Linux/WSL `BUILD_APP=ON`, `ENABLE_MEDIAPIPE=OFF`: PASS, including the null
   backend factory and dispatcher integration.
-- Windows backend build: NOT AVAILABLE. No MSVC, Windows SDK, MinGW or Windows
-  cross-compiler was installed.
+- Windows GitHub Actions run `32558529713`: PASS on `windows-latest`.
+- Windows toolchain: CMake 4.4.2, Visual Studio 18 2026, MSVC 19.51.36256.0 and
+  MSBuild 18.9.1+a81b43525.
+- Windows backend build and `user32` link: PASS. The log explicitly compiled
+  `WindowsSystemInputBackend.cpp` and produced
+  `test_windows_input_backend_compile.exe`.
+- Windows CTest: 14/14 PASS, including the compile-only backend target.
 - Windows native integration: NOT TESTED. The cursor/button was not moved.
 - MediaPipe integration: not rerun and not modified.
+
+The Windows-only test never calls movement or primary-button methods. Linux
+still registers exactly 13 tests because the new target is guarded by `WIN32`.

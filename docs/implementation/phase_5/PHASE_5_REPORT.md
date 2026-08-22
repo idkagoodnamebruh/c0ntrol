@@ -2,8 +2,9 @@
 
 ## Status
 
-Phase 5 is complete at the architecture and headless-validation level on the
-exact approved Phase 4 head `a437707ccc981e1059cad4c08537f0cdec67eefd`.
+Phase 5 is complete for its defined architecture, headless behavior and Windows
+compile/link scope on the exact approved Phase 4 head
+`a437707ccc981e1059cad4c08537f0cdec67eefd`.
 
 The runtime path is now:
 
@@ -39,10 +40,11 @@ removed, leaving one active pointer transformation boundary.
 - New action/mapping targets: 3/3 PASS.
 - `make test`: 13/13 PASS.
 - Linux/WSL desktop build with MediaPipe disabled: PASS.
-- Windows pointer/absolute-coordinate math: PASS headless.
+- Windows pointer/absolute-coordinate math: PASS on Linux and Windows.
 - Windows backend source: IMPLEMENTED with `SendInput`.
-- Windows backend compilation: NOT AVAILABLE (no MSVC, Windows SDK, MinGW or
-  cross-toolchain present).
+- Windows backend compilation/link: PASS with MSVC 19.51.36256.0 and `user32`
+  on `windows-latest`.
+- Windows CTest: 14/14 PASS.
 - Native Windows integration: NOT TESTED; no automatic test moved the user's
   real cursor or button.
 
