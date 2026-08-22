@@ -57,6 +57,8 @@ if(BUILD_APP)
 endif()
 
 if(BUILD_TESTING)
+    find_package(Threads REQUIRED)
+
     function(add_core_test target source)
         add_executable(${target} ${source} ${ARGN})
         target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR})
@@ -99,6 +101,11 @@ if(BUILD_TESTING)
         src/core/actions/ActionDispatcher.cpp
         src/core/actions/PointerMapper.cpp
     )
+    add_core_test(test_latest_frame_slot tests/test_latest_frame_slot.cpp)
+    target_link_libraries(test_latest_frame_slot PRIVATE Threads::Threads)
+    add_core_test(test_async_capture tests/test_async_capture.cpp)
+    target_link_libraries(test_async_capture PRIVATE Threads::Threads)
+    add_core_test(test_pipeline_metrics tests/test_pipeline_metrics.cpp)
     add_core_test(test_windows_pointer_math
         tests/test_windows_pointer_math.cpp
         src/platform/windows/WindowsPointerMath.cpp
