@@ -15,7 +15,14 @@ MainWindow::MainWindow(QWidget* parent)
     m_videoLabel->setMinimumSize(640, 480);
 
     m_devWidget = new DeveloperModeWidget(this);
-    m_cursorCtrl = new CursorController(this);
+
+    m_inputBackend = createSystemInputBackend();
+    m_actionDispatcher =
+        std::make_unique<ActionDispatcher>(*m_inputBackend);
+    if (!m_actionDispatcher->initialize()) {
+        qWarning() << "[NATIVE INPUT]"
+                   << QString::fromStdString(m_actionDispatcher->lastError());
+    }
 
     m_layout->addWidget(m_videoLabel);
     m_layout->addWidget(m_devWidget);
@@ -35,6 +42,7 @@ MainWindow::~MainWindow() {
         m_thread->quit();
         m_thread->wait();
     }
+    if (m_actionDispatcher) m_actionDispatcher->shutdown();
 }
 
 void MainWindow::setupWorker() {
@@ -80,6 +88,14 @@ void MainWindow::onFrameProcessed(const QImage& frame, const Landmarks& landmark
 void MainWindow::onFilteredTrackingFrameProcessed(
     const HandTrackingFrame& trackingFrame) {
     const GesturePipelineResult result = m_gesturePipeline.process(trackingFrame);
+    if (m_actionDispatcher) {
+        const ActionDispatchResult dispatched =
+            m_actionDispatcher->process(result);
+        if (!dispatched.success) {
+            qWarning() << "[NATIVE INPUT]"
+                       << QString::fromStdString(dispatched.error);
+        }
+    }
 
     const GestureObservation* selected = nullptr;
     for (std::size_t i = 0; i < result.observationCount; ++i) {
@@ -104,10 +120,6 @@ void MainWindow::onFilteredTrackingFrameProcessed(
             default:
                 break;
         }
-        m_cursorCtrl->onPointerUpdated(selected->pointerPoint,
-                                       selected->pointerActive);
-    } else {
-        m_cursorCtrl->onPointerUpdated({}, false);
     }
 
     for (std::size_t i = 0; i < result.events.count; ++i) {

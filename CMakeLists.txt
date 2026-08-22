@@ -34,6 +34,10 @@ if(BUILD_APP)
     if(NOT ENABLE_MEDIAPIPE)
         list(FILTER SOURCES EXCLUDE REGEX "MediaPipeHandTrackingBackend\\.cpp$")
     endif()
+    if(NOT WIN32)
+        list(FILTER SOURCES EXCLUDE REGEX
+             "WindowsSystemInputBackend\\.cpp$")
+    endif()
 
     add_executable(c0ntrol ${SOURCES} ${HEADERS})
     target_include_directories(c0ntrol PRIVATE ${CMAKE_SOURCE_DIR})
@@ -47,6 +51,9 @@ if(BUILD_APP)
         target_compile_definitions(c0ntrol PRIVATE C0NTROL_ENABLE_MEDIAPIPE=1)
         target_link_libraries(c0ntrol PRIVATE MediaPipe::C0ntrolBridge)
     endif()
+    if(WIN32)
+        target_link_libraries(c0ntrol PRIVATE user32)
+    endif()
 endif()
 
 if(BUILD_TESTING)
@@ -56,7 +63,10 @@ if(BUILD_TESTING)
         add_test(NAME ${target} COMMAND ${target})
     endfunction()
 
-    add_core_test(test_display_transform tests/test_display_transform.cpp)
+    add_core_test(test_display_transform
+        tests/test_display_transform.cpp
+        src/core/actions/PointerMapper.cpp
+    )
     add_core_test(test_dynamic_gestures tests/test_dynamic_gestures.cpp)
     add_core_test(test_frame_sync tests/test_frame_sync.cpp)
     add_core_test(test_hand_geometry
@@ -80,6 +90,34 @@ if(BUILD_TESTING)
         src/core/gestures/GestureStateMachine.cpp
         src/core/gestures/GesturePipeline.cpp
     )
+    add_core_test(test_pointer_mapper
+        tests/test_pointer_mapper.cpp
+        src/core/actions/PointerMapper.cpp
+    )
+    add_core_test(test_action_dispatcher
+        tests/test_action_dispatcher.cpp
+        src/core/actions/ActionDispatcher.cpp
+        src/core/actions/PointerMapper.cpp
+    )
+    add_core_test(test_windows_pointer_math
+        tests/test_windows_pointer_math.cpp
+        src/platform/windows/WindowsPointerMath.cpp
+    )
+    if(WIN32)
+        add_executable(test_windows_input_backend_compile
+            tests/test_windows_input_backend_compile.cpp
+            src/platform/windows/WindowsSystemInputBackend.cpp
+            src/platform/windows/WindowsPointerMath.cpp
+        )
+        target_include_directories(test_windows_input_backend_compile
+            PRIVATE ${CMAKE_SOURCE_DIR}
+        )
+        target_link_libraries(test_windows_input_backend_compile PRIVATE user32)
+        add_test(
+            NAME test_windows_input_backend_compile
+            COMMAND test_windows_input_backend_compile
+        )
+    endif()
     add_core_test(test_one_euro tests/test_one_euro.cpp)
     add_core_test(test_landmark_filter_bank
         tests/test_landmark_filter_bank.cpp

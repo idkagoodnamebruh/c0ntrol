@@ -1,0 +1,211 @@
+#include "ActionDispatcher.h"
+
+ActionDispatcher::ActionDispatcher(ISystemInputBackend& backend,
+                                   PointerMappingConfig mappingConfig)
+    : m_backend(backend), m_pointerMapper(mappingConfig) {}
+
+ActionDispatcher::~ActionDispatcher() {
+    shutdown();
+}
+
+bool ActionDispatcher::initialize() {
+    if (m_initialized) return true;
+    if (!m_backend.initialize()) {
+        m_lastError = m_backend.lastError();
+        m_inputEnabled = false;
+        return false;
+    }
+    m_desktop = m_backend.desktopGeometry();
+    if (!m_desktop.isValid()) {
+        m_lastError = "system input backend returned invalid desktop geometry";
+        m_backend.shutdown();
+        m_inputEnabled = false;
+        return false;
+    }
+    m_initialized = true;
+    m_inputEnabled = true;
+    m_lastError.clear();
+    return true;
+}
+
+const GestureObservation* ActionDispatcher::selectActiveObservation(
+    const GesturePipelineResult& pipelineResult) const {
+    const GestureObservation* left = nullptr;
+    for (std::size_t i = 0; i < pipelineResult.observationCount; ++i) {
+        const auto& observation = pipelineResult.observations[i];
+        if (!observation.valid || !observation.pointerActive) continue;
+        if (observation.handedness == Handedness::RIGHT) return &observation;
+        if (observation.handedness == Handedness::LEFT) left = &observation;
+    }
+    return left;
+}
+
+ActionDispatcher::FrameMetadata ActionDispatcher::metadata(
+    const GesturePipelineResult& pipelineResult) {
+    if (pipelineResult.observationCount > 0) {
+        const auto& observation = pipelineResult.observations[0];
+        return {true, observation.frameId, observation.timestampUs};
+    }
+    if (pipelineResult.events.count > 0) {
+        const auto& event = pipelineResult.events.events[0];
+        return {true, event.frameId, event.timestampUs};
+    }
+    return {};
+}
+
+ActionCommand ActionDispatcher::command(ActionType type,
+                                        const FrameMetadata& frame,
+                                        Handedness hand,
+                                        DesktopPoint point) const {
+    return {type, point, hand, frame.frameId, frame.timestampUs};
+}
+
+void ActionDispatcher::fail(ActionDispatchResult& result,
+                            const std::string& error) {
+    result.success = false;
+    result.error = error;
+    m_lastError = error;
+}
+
+bool ActionDispatcher::dispatchButtonDown(const ActionCommand& action,
+                                          ActionDispatchResult& result) {
+    if (m_buttonDown) return true;
+    if (!m_backend.primaryButtonDown()) {
+        fail(result, m_backend.lastError());
+        return false;
+    }
+    m_buttonDown = true;
+    m_buttonHand = action.handedness;
+    result.record(action);
+    return true;
+}
+
+bool ActionDispatcher::dispatchButtonUp(const ActionCommand& action,
+                                        ActionDispatchResult& result) {
+    if (!m_buttonDown) return true;
+    if (!m_backend.primaryButtonUp()) {
+        fail(result, m_backend.lastError());
+        return false;
+    }
+    m_buttonDown = false;
+    m_buttonHand = Handedness::UNKNOWN;
+    result.record(action);
+    return true;
+}
+
+bool ActionDispatcher::dispatchMove(const ActionCommand& action,
+                                    ActionDispatchResult& result) {
+    if (m_backend.movePointer(action.desktopPoint)) {
+        result.record(action);
+        return true;
+    }
+
+    const std::string moveError = m_backend.lastError();
+    // One best-effort recovery only. Keep ownership if UP also fails so a
+    // later disable/shutdown can retry; never spin in the hot path.
+    if (m_buttonDown && m_backend.primaryButtonUp()) {
+        m_buttonDown = false;
+        m_buttonHand = Handedness::UNKNOWN;
+        result.record(command(ActionType::PRIMARY_BUTTON_UP,
+                              {true, action.frameId, action.timestampUs},
+                              action.handedness));
+    }
+    fail(result, moveError);
+    return false;
+}
+
+ActionDispatchResult ActionDispatcher::process(
+    const GesturePipelineResult& pipelineResult) {
+    ActionDispatchResult result;
+    if (!m_initialized || !m_inputEnabled) return result;
+
+    const FrameMetadata frame = metadata(pipelineResult);
+    if (!frame.present || frame.timestampUs < 0 ||
+        (m_hasTimestamp && frame.timestampUs <= m_lastTimestampUs)) {
+        return result;
+    }
+    m_lastTimestampUs = frame.timestampUs;
+    m_hasTimestamp = true;
+
+    const GestureObservation* selected =
+        selectActiveObservation(pipelineResult);
+    const Handedness selectedHand = selected == nullptr
+        ? Handedness::UNKNOWN : selected->handedness;
+
+    if (selectedHand != m_activeHand) {
+        if (m_buttonDown) {
+            if (!dispatchButtonUp(command(ActionType::PRIMARY_BUTTON_UP,
+                                          frame, m_buttonHand), result)) {
+                return result;
+            }
+        }
+        m_activeHand = selectedHand;
+    }
+
+    if (m_activeHand == Handedness::UNKNOWN) return result;
+
+    for (std::size_t i = 0; i < pipelineResult.events.count; ++i) {
+        const GestureEvent& event = pipelineResult.events.events[i];
+        if (event.handedness != m_activeHand) continue;
+        if (event.type == GestureEventType::PINCH_BEGIN) {
+            if (!dispatchButtonDown(command(ActionType::PRIMARY_BUTTON_DOWN,
+                                            frame, m_activeHand), result)) {
+                return result;
+            }
+        } else if (event.type == GestureEventType::PINCH_END ||
+                   event.type == GestureEventType::PINCH_CANCEL) {
+            if (!dispatchButtonUp(command(ActionType::PRIMARY_BUTTON_UP,
+                                          frame, m_activeHand), result)) {
+                return result;
+            }
+        }
+    }
+
+    if (selected != nullptr) {
+        const auto mapped = m_pointerMapper.map(selected->pointerPoint, m_desktop);
+        if (!mapped.has_value()) {
+            fail(result, "pointer mapping failed");
+            if (m_buttonDown) releaseAll();
+            return result;
+        }
+        dispatchMove(command(ActionType::MOVE_POINTER, frame, m_activeHand,
+                             *mapped), result);
+    }
+    return result;
+}
+
+bool ActionDispatcher::releaseAll() {
+    if (!m_buttonDown) return true;
+    if (!m_backend.primaryButtonUp()) {
+        m_lastError = m_backend.lastError();
+        return false;
+    }
+    m_buttonDown = false;
+    m_buttonHand = Handedness::UNKNOWN;
+    return true;
+}
+
+bool ActionDispatcher::setInputEnabled(bool enabled) {
+    if (enabled == m_inputEnabled) return true;
+    if (!enabled) {
+        const bool released = releaseAll();
+        m_inputEnabled = false;
+        m_activeHand = Handedness::UNKNOWN;
+        return released;
+    }
+
+    if (!m_initialized || !releaseAll()) return false;
+    m_activeHand = Handedness::UNKNOWN;
+    m_hasTimestamp = false;
+    m_inputEnabled = true;
+    return true;
+}
+
+void ActionDispatcher::shutdown() {
+    if (!m_initialized) return;
+    releaseAll();
+    m_backend.shutdown();
+    m_initialized = false;
+    m_inputEnabled = false;
+    m_activeHand = Handedness::UNKNOWN;
+}
