@@ -35,6 +35,7 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
+    if (m_actionDispatcher) m_actionDispatcher->shutdown();
     if (m_worker) {
         QMetaObject::invokeMethod(m_worker, "stop", Qt::BlockingQueuedConnection);
     }
@@ -42,7 +43,6 @@ MainWindow::~MainWindow() {
         m_thread->quit();
         m_thread->wait();
     }
-    if (m_actionDispatcher) m_actionDispatcher->shutdown();
 }
 
 void MainWindow::setupWorker() {
@@ -50,6 +50,7 @@ void MainWindow::setupWorker() {
     // lives in a Qt-only bridge so core tests remain independent of Qt.
     qRegisterMetaType<Landmarks>("Landmarks");
     qRegisterMetaType<HandTrackingFrame>("HandTrackingFrame");
+    qRegisterMetaType<PipelineMetrics>("PipelineMetrics");
 
     m_thread = new QThread(this);
     m_worker = new VisionWorker();
@@ -60,6 +61,8 @@ void MainWindow::setupWorker() {
     connect(m_worker, &VisionWorker::filteredTrackingFrameProcessed, this,
             &MainWindow::onFilteredTrackingFrameProcessed);
     connect(m_worker, &VisionWorker::frameProcessed, this, &MainWindow::onFrameProcessed);
+    connect(m_worker, &VisionWorker::metricsUpdated, this,
+            &MainWindow::onPipelineMetricsUpdated);
     connect(m_worker, &VisionWorker::errorOccurred, this, [](const QString& err){
         qWarning() << "[WORKER ERROR]" << err;
     });
@@ -68,8 +71,6 @@ void MainWindow::setupWorker() {
 }
 
 void MainWindow::onFrameProcessed(const QImage& frame, const Landmarks& landmarks) {
-    m_devWidget->updateTelemetry(30.0, m_currentGestureLabel, landmarks);
-
     // Dibujar landmarks sobre la imagen de cámara
     QImage overlayFrame = frame.copy();
     QPainter painter(&overlayFrame);
@@ -83,6 +84,10 @@ void MainWindow::onFrameProcessed(const QImage& frame, const Landmarks& landmark
     painter.end();
 
     m_videoLabel->setPixmap(QPixmap::fromImage(overlayFrame));
+}
+
+void MainWindow::onPipelineMetricsUpdated(const PipelineMetrics& metrics) {
+    m_devWidget->updateTelemetry(metrics, m_currentGestureLabel);
 }
 
 void MainWindow::onFilteredTrackingFrameProcessed(
@@ -122,18 +127,4 @@ void MainWindow::onFilteredTrackingFrameProcessed(
         }
     }
 
-    for (std::size_t i = 0; i < result.events.count; ++i) {
-        const GestureEvent& event = result.events.events[i];
-        const char* eventName = "POINTER_INACTIVE";
-        switch (event.type) {
-            case GestureEventType::POINTER_ACTIVE: eventName = "POINTER_ACTIVE"; break;
-            case GestureEventType::POINTER_INACTIVE: eventName = "POINTER_INACTIVE"; break;
-            case GestureEventType::PINCH_BEGIN: eventName = "PINCH_BEGIN"; break;
-            case GestureEventType::PINCH_END: eventName = "PINCH_END"; break;
-            case GestureEventType::PINCH_CANCEL: eventName = "PINCH_CANCEL"; break;
-        }
-        qInfo() << "[GESTURE EVENT]" << eventName
-                << (event.handedness == Handedness::LEFT ? "LEFT" : "RIGHT")
-                << event.timestampUs;
-    }
 }

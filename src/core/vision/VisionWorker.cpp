@@ -1,6 +1,6 @@
 #include "VisionWorker.h"
-#include <QThread>
 #include <QDebug>
+#include <chrono>
 #include <cmath>
 #include "src/core/tracking/LegacyLandmarksAdapter.h"
 #include "src/core/tracking/MockHandTrackingBackend.h"
@@ -9,14 +9,23 @@
 #endif
 
 VisionWorker::VisionWorker(QObject* parent)
-    : QObject(parent), m_cameraIndex(0), m_frameTimer(new QTimer(this)) {
+    : QObject(parent), m_cameraIndex(0), m_consumerTimer(new QTimer(this)) {
 #ifdef C0NTROL_ENABLE_MEDIAPIPE
     m_trackingBackend = std::make_unique<MediaPipeHandTrackingBackend>();
 #else
     m_trackingBackend = std::make_unique<MockHandTrackingBackend>();
 #endif
-    m_frameTimer->setInterval(33);
-    connect(m_frameTimer, &QTimer::timeout, this, &VisionWorker::processFrame);
+    m_cameraConfig.index = m_cameraIndex;
+    auto source = std::make_unique<OpenCVCameraSource>(m_cameraConfig);
+    m_captureSource = source.get();
+    m_capture = std::make_unique<AsyncCapture<cv::Mat>>(std::move(source));
+
+    // The timer only checks a capacity-one slot; it never reads the camera.
+    // Five milliseconds is bounded polling, not an assumed camera FPS.
+    m_consumerTimer->setTimerType(Qt::PreciseTimer);
+    m_consumerTimer->setInterval(5);
+    connect(m_consumerTimer, &QTimer::timeout,
+            this, &VisionWorker::processLatestFrame);
 }
 
 VisionWorker::~VisionWorker() {
@@ -25,6 +34,9 @@ VisionWorker::~VisionWorker() {
 
 void VisionWorker::setCameraIndex(int index) {
     m_cameraIndex = index;
+    m_cameraConfig.index = index;
+    if (m_captureSource != nullptr && !m_running)
+        (void)m_captureSource->setConfig(m_cameraConfig);
 }
 
 void VisionWorker::setFilteringEnabled(bool enabled) {
@@ -32,78 +44,167 @@ void VisionWorker::setFilteringEnabled(bool enabled) {
 }
 
 void VisionWorker::start() {
-    if (m_frameTimer->isActive()) {
-        return;
-    }
-
-    m_cap.open(m_cameraIndex);
-
-    if (!m_cap.isOpened()) {
-        qWarning() << "[ERROR] No se pudo abrir la cámara index:" << m_cameraIndex;
-        emit errorOccurred("No se pudo acceder a la cámara seleccionada.");
-        return;
-    }
-
-    m_cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-    m_cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+    if (m_running) return;
 
     HandTrackingConfig trackingConfig;
     if (!m_trackingBackend->initialize(trackingConfig)) {
-        emit errorOccurred(QString::fromStdString(m_trackingBackend->lastError()));
-        m_cap.release();
+        emit errorOccurred(
+            "TRACKING_FAILED: " +
+            QString::fromStdString(m_trackingBackend->lastError()));
         return;
     }
 
     m_landmarkFilterBank.reset();
-    qInfo() << "[INFO] Hilo de capturas iniciado exitosamente.";
-    m_frameTimer->start();
+    m_metricsTracker.reset();
+    m_lastTrackingTimestampUs = -1;
+    m_lastTelemetryEmitUs = -1;
+    m_lastErrorEmitUs = -1;
+    m_lastErrorMessage.clear();
+    m_captureStartedReported = false;
+    m_captureFailureReported = false;
+    m_running = m_capture->start();
+    if (!m_running) {
+        m_trackingBackend->shutdown();
+        emit errorOccurred("CAMERA_OPEN_FAILED: capture producer did not start");
+        return;
+    }
+    m_consumerTimer->start();
 }
 
 void VisionWorker::stop() {
-    m_frameTimer->stop();
+    const bool wasActive = m_running ||
+        (m_capture && m_capture->state() != CaptureState::STOPPED);
+    m_consumerTimer->stop();
+    m_running = false;
+    if (m_capture) m_capture->stop();
     m_trackingBackend->shutdown();
     m_landmarkFilterBank.reset();
-    if (m_cap.isOpened()) {
-        m_cap.release();
+    if (wasActive) qInfo() << "[CAPTURE] stopped";
+}
+
+std::int64_t VisionWorker::steadyNowUs() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+void VisionWorker::reportCaptureStarted() {
+    if (m_captureStartedReported || m_captureSource == nullptr) return;
+    const CameraInfo info = m_captureSource->cameraInfo();
+    const char* bufferSupport = "UNKNOWN";
+    if (info.bufferSizeSupport == CameraPropertySupport::SUPPORTED)
+        bufferSupport = "SUPPORTED";
+    else if (info.bufferSizeSupport == CameraPropertySupport::NOT_SUPPORTED)
+        bufferSupport = "NOT_SUPPORTED";
+
+    qInfo() << "[CAPTURE] started"
+            << "backend=" << QString::fromStdString(info.backendName)
+            << "requested=" << info.requested.requestedWidth << "x"
+            << info.requested.requestedHeight << "@"
+            << info.requested.requestedFps
+            << "actual=" << info.actualWidth << "x" << info.actualHeight
+            << "@" << info.actualFps
+            << "buffer-size=" << bufferSupport;
+    m_captureStartedReported = true;
+}
+
+void VisionWorker::handleCaptureFailure() {
+    if (m_captureFailureReported) return;
+    m_captureFailureReported = true;
+    const QString detail = QString::fromStdString(m_capture->lastError());
+    emit errorOccurred(detail.isEmpty()
+        ? QString("CAMERA_DISCONNECTED: capture producer failed")
+        : detail);
+    m_consumerTimer->stop();
+    m_running = false;
+    m_capture->stop();
+    m_trackingBackend->shutdown();
+}
+
+void VisionWorker::emitRateLimitedError(const QString& category,
+                                        const QString& detail) {
+    const auto nowUs = steadyNowUs();
+    const QString message = category + ": " + detail;
+    if (message != m_lastErrorMessage || m_lastErrorEmitUs < 0 ||
+        nowUs - m_lastErrorEmitUs >= 1'000'000) {
+        emit errorOccurred(message);
+        m_lastErrorMessage = message;
+        m_lastErrorEmitUs = nowUs;
     }
 }
 
-void VisionWorker::processFrame() {
-    if (!m_cap.isOpened()) {
+void VisionWorker::processLatestFrame() {
+    if (!m_running) return;
+
+    const CaptureState state = m_capture->state();
+    if (state == CaptureState::FAILED) {
+        handleCaptureFailure();
+        return;
+    }
+    if (state == CaptureState::STOPPED && m_captureStartedReported) {
+        if (!m_captureFailureReported) {
+            m_captureFailureReported = true;
+            emit errorOccurred(
+                "CAMERA_DISCONNECTED: capture producer stopped unexpectedly");
+        }
+        m_consumerTimer->stop();
+        m_running = false;
+        m_capture->stop();
+        m_trackingBackend->shutdown();
+        return;
+    }
+    if (state == CaptureState::RUNNING) reportCaptureStarted();
+
+    auto captured = m_capture->tryTakeLatest();
+    if (!captured.has_value()) return;
+
+    const auto processingStartUs = steadyNowUs();
+    cv::Mat rgbFrame;
+    try {
+        cv::cvtColor(captured->value, rgbFrame, cv::COLOR_BGR2RGB);
+    } catch (const cv::Exception& exception) {
+        emitRateLimitedError("TRACKING_FAILED", exception.what());
         return;
     }
 
-    cv::Mat frame;
-    m_cap >> frame;
-    if (frame.empty()) {
-        return;
-    }
+    auto trackingTimestampUs = captured->metadata.captureTimestampUs;
+    if (trackingTimestampUs <= m_lastTrackingTimestampUs)
+        trackingTimestampUs = m_lastTrackingTimestampUs + 1;
+    m_lastTrackingTimestampUs = trackingTimestampUs;
 
-        // Convertir BGR OpenCV a QImage RGB888 para Qt QPainter
-        cv::Mat rgbFrame;
-        cv::cvtColor(frame, rgbFrame, cv::COLOR_BGR2RGB);
-
-        QImage image(rgbFrame.data, rgbFrame.cols, rgbFrame.rows, rgbFrame.step, QImage::Format_RGB888);
-
-    const auto timestampUs = m_trackingClock.nextTimestampUs();
-    const auto frameId = m_trackingClock.nextFrameId();
+    const auto inferenceStartUs = steadyNowUs();
     const RgbImageView imageView{rgbFrame.data, rgbFrame.cols, rgbFrame.rows,
                                  static_cast<std::size_t>(rgbFrame.step)};
-    HandTrackingFrame rawTrackingFrame =
-        m_trackingBackend->process(imageView, timestampUs, frameId);
+    HandTrackingFrame rawTrackingFrame = m_trackingBackend->process(
+        imageView, trackingTimestampUs,
+        captured->metadata.captureSequence);
+    const auto inferenceEndUs = steadyNowUs();
     if (!rawTrackingFrame.valid && !m_trackingBackend->lastError().empty()) {
-        emit errorOccurred(QString::fromStdString(m_trackingBackend->lastError()));
+        emitRateLimitedError(
+            "TRACKING_FAILED",
+            QString::fromStdString(m_trackingBackend->lastError()));
     }
 
-    // Keep the backend observation intact for debugging and future consumers.
     emit trackingFrameProcessed(rawTrackingFrame);
 
     HandTrackingFrame filteredTrackingFrame =
         m_landmarkFilterBank.process(rawTrackingFrame);
     emit filteredTrackingFrameProcessed(filteredTrackingFrame);
 
-    // Temporary compatibility policy: prefer a RIGHT hand, otherwise the first.
-    // The legacy gesture/GUI path consumes the stabilized observation.
     Landmarks landmarks = toLegacyLandmarks(filteredTrackingFrame);
-    emit frameProcessed(image.copy(), landmarks);
+    QImage image(rgbFrame.data, rgbFrame.cols, rgbFrame.rows, rgbFrame.step,
+                 QImage::Format_RGB888);
+    QImage ownedImage = image.copy();
+    const auto processingEndUs = steadyNowUs();
+    m_metricsTracker.recordProcessed(
+        captured->metadata.captureTimestampUs, processingStartUs,
+        inferenceStartUs, inferenceEndUs, processingEndUs);
+
+    emit frameProcessed(ownedImage, landmarks);
+
+    if (m_lastTelemetryEmitUs < 0 ||
+        processingEndUs - m_lastTelemetryEmitUs >= 200'000) {
+        emit metricsUpdated(m_metricsTracker.snapshot(m_capture->metrics()));
+        m_lastTelemetryEmitUs = processingEndUs;
+    }
 }

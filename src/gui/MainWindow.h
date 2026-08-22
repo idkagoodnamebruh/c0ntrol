@@ -22,6 +22,7 @@ public:
 private slots:
     void onFrameProcessed(const QImage& frame, const Landmarks& landmarks);
     void onFilteredTrackingFrameProcessed(const HandTrackingFrame& trackingFrame);
+    void onPipelineMetricsUpdated(const PipelineMetrics& metrics);
 
 private:
     void setupWorker();

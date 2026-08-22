@@ -4,8 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QTextEdit>
-#include "src/core/gestures/Landmarks.h"
+#include "src/core/metrics/PipelineMetrics.h"
 #include "src/core/qt/QtMetaTypes.h"
 
 class DeveloperModeWidget : public QWidget {
@@ -15,15 +14,16 @@ public:
     explicit DeveloperModeWidget(QWidget* parent = nullptr);
 
 public slots:
-    void updateTelemetry(double fps, const QString& gestureName, const Landmarks& landmarks);
+    void updateTelemetry(const PipelineMetrics& metrics,
+                         const QString& gestureName);
 
 private:
     QVBoxLayout* m_mainLayout;
-    QLabel* m_fpsLabel;
+    QLabel* m_captureFpsLabel;
+    QLabel* m_processingFpsLabel;
+    QLabel* m_dropLabel;
+    QLabel* m_latencyLabel;
     QLabel* m_gestureLabel;
-    QTextEdit* m_logText;
-
-    double m_fps;
     QString m_gestureName;
 };
 
