@@ -15,6 +15,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Toolchain versions
+        shell: pwsh
+        run: cmake --version
+
       - name: Configure
         shell: pwsh
         run: >-
