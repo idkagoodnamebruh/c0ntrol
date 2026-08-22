@@ -103,6 +103,21 @@ if(BUILD_TESTING)
         tests/test_windows_pointer_math.cpp
         src/platform/windows/WindowsPointerMath.cpp
     )
+    if(WIN32)
+        add_executable(test_windows_input_backend_compile
+            tests/test_windows_input_backend_compile.cpp
+            src/platform/windows/WindowsSystemInputBackend.cpp
+            src/platform/windows/WindowsPointerMath.cpp
+        )
+        target_include_directories(test_windows_input_backend_compile
+            PRIVATE ${CMAKE_SOURCE_DIR}
+        )
+        target_link_libraries(test_windows_input_backend_compile PRIVATE user32)
+        add_test(
+            NAME test_windows_input_backend_compile
+            COMMAND test_windows_input_backend_compile
+        )
+    endif()
     add_core_test(test_one_euro tests/test_one_euro.cpp)
     add_core_test(test_landmark_filter_bank
         tests/test_landmark_filter_bank.cpp
