@@ -9,6 +9,7 @@ enum class ActionType {
     MOVE_POINTER,
     PRIMARY_BUTTON_DOWN,
     PRIMARY_BUTTON_UP,
+    SCROLL_VERTICAL,
 };
 
 struct DesktopPoint {
@@ -31,6 +32,7 @@ struct ActionCommand {
     Handedness handedness{Handedness::UNKNOWN};
     std::uint64_t frameId{0};
     std::int64_t timestampUs{0};
+    int scrollNotches{0};
 };
 
 #endif // ACTIONTYPES_H

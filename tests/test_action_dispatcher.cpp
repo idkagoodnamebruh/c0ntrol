@@ -4,6 +4,7 @@
 #include "src/core/actions/ActionDispatcher.h"
 #include "src/core/actions/RecordingSystemInputBackend.h"
 #include "src/core/config/RuntimeConfigController.h"
+#include "src/platform/NullSystemInputBackend.h"
 
 namespace {
 
@@ -298,6 +299,177 @@ void testSafeDefaultAndRuntimeConfigSafety() {
             "settings reset releases once and restores safe defaults");
 }
 
+void testVerticalSwipeScrolling() {
+    RecordingSystemInputBackend backend;
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
+    require(dispatcher.initialize(), "scroll dispatcher initializes");
+
+    const auto up = dispatcher.process(eventOnly(
+        100, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(up.success && up.commandCount == 1 &&
+                up.commands[0].type == ActionType::SCROLL_VERTICAL &&
+                up.commands[0].scrollNotches == 3 &&
+                backend.scrollCount == 1 &&
+                backend.records.back().scrollNotches == 3,
+            "SWIPE_UP emits exactly one positive logical scroll");
+
+    const auto down = dispatcher.process(eventOnly(
+        200, Handedness::RIGHT, GestureEventType::SWIPE_DOWN));
+    require(down.success && down.commandCount == 1 &&
+                down.commands[0].scrollNotches == -3 &&
+                backend.scrollCount == 2,
+            "SWIPE_DOWN emits the opposite scroll sign");
+    dispatcher.process(eventOnly(
+        200, Handedness::RIGHT, GestureEventType::SWIPE_DOWN));
+    require(backend.scrollCount == 2,
+            "replayed swipe timestamp cannot duplicate scroll");
+
+    GesturePipelineResult both;
+    both.events.push(event(300, Handedness::LEFT,
+                           GestureEventType::SWIPE_DOWN));
+    both.events.push(event(300, Handedness::RIGHT,
+                           GestureEventType::SWIPE_UP));
+    const auto preferred = dispatcher.process(both);
+    require(preferred.commandCount == 1 && backend.scrollCount == 3 &&
+                preferred.commands[0].handedness == Handedness::RIGHT &&
+                preferred.commands[0].scrollNotches == 3,
+            "preferred hand limits simultaneous swipes to one scroll");
+
+    dispatcher.process(eventOnly(
+        400, Handedness::LEFT, GestureEventType::SWIPE_UP));
+    require(backend.scrollCount == 4,
+            "single non-preferred hand is an allowed fallback");
+    dispatcher.process(eventOnly(
+        500, Handedness::RIGHT, GestureEventType::SWIPE_LEFT));
+    require(backend.scrollCount == 4,
+            "horizontal swipe has no OS action");
+}
+
+void testScrollSafetyAndConfiguration() {
+    RecordingSystemInputBackend dragBackend;
+    ActionDispatcher drag(dragBackend, {}, enabledInput());
+    require(drag.initialize(), "drag dispatcher initializes");
+    drag.process(frameWithEvent(
+        observation(100, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+    require(drag.buttonDown(), "test owns primary button before swipe");
+    drag.process(eventOnly(
+        200, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(dragBackend.scrollCount == 0 && dragBackend.buttonUpCount == 1,
+            "scroll is suppressed when the frame began with button down");
+
+    RecordingSystemInputBackend disabledBackend;
+    ActionDispatcher disabled(disabledBackend);
+    require(disabled.initialize(), "disabled dispatcher initializes");
+    disabled.process(eventOnly(
+        100, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(disabledBackend.scrollCount == 0,
+            "master input disabled blocks native scroll");
+
+    InputConfig scrollOff = enabledInput();
+    scrollOff.swipeScrollEnabled = false;
+    RecordingSystemInputBackend scrollOffBackend;
+    ActionDispatcher scrollDisabled(scrollOffBackend, {}, scrollOff);
+    require(scrollDisabled.initialize(), "scroll-disabled dispatcher initializes");
+    scrollDisabled.process(eventOnly(
+        100, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(scrollOffBackend.scrollCount == 0,
+            "swipe-scroll setting blocks scroll without removing events");
+
+    InputConfig inverted = enabledInput();
+    inverted.scrollNotchesPerSwipe = 5;
+    inverted.invertSwipeScroll = true;
+    RecordingSystemInputBackend invertedBackend;
+    ActionDispatcher invertedDispatcher(invertedBackend, {}, inverted);
+    require(invertedDispatcher.initialize(), "inverted dispatcher initializes");
+    const auto invertedResult = invertedDispatcher.process(eventOnly(
+        100, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(invertedResult.commandCount == 1 &&
+                invertedResult.commands[0].scrollNotches == -5,
+            "invert setting reverses configured scroll amount");
+
+    RecordingSystemInputBackend failedBackend;
+    ActionDispatcher failed(failedBackend, {}, enabledInput());
+    require(failed.initialize(), "failure dispatcher initializes");
+    failedBackend.failNextScroll = true;
+    const auto failure = failed.process(eventOnly(
+        100, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(!failure.success && !failure.error.empty() &&
+                failedBackend.scrollCount == 0,
+            "backend scroll failure propagates without a fake command");
+}
+
+void testSettingsModalInputSuspension() {
+    RuntimeConfig initial;
+    initial.input = enabledInput();
+    RecordingSystemInputBackend backend;
+    ActionDispatcher dispatcher(backend, initial.pointer, initial.input);
+    require(dispatcher.initialize(), "modal dispatcher initializes");
+    RuntimeConfigController controller(initial, dispatcher);
+    dispatcher.process(frameWithEvent(
+        observation(100, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+
+    std::string error;
+    require(controller.suspendInput(error) && error.empty() &&
+                controller.inputSuspended() &&
+                !dispatcher.inputEnabled() && !dispatcher.buttonDown() &&
+                backend.buttonUpCount == 1 &&
+                controller.current().input.enabled,
+            "opening settings suspends input and releases without persisting");
+    dispatcher.process(eventOnly(
+        200, Handedness::RIGHT, GestureEventType::SWIPE_UP));
+    require(backend.scrollCount == 0,
+            "settings/calibration suspension blocks MOVE/DOWN/UP/SCROLL");
+    require(controller.cancelInputSuspension(error) &&
+                dispatcher.inputEnabled() && !controller.inputSuspended() &&
+                controller.current() == initial,
+            "Cancel restores prior input state without changing settings");
+
+    require(controller.suspendInput(error),
+            "second settings session suspends input");
+    RuntimeConfig requested = initial;
+    requested.input.scrollNotchesPerSwipe = 6;
+    requested.input.invertSwipeScroll = true;
+    const auto saved = controller.completeInputSuspension(requested, false);
+    require(saved.success && !controller.inputSuspended() &&
+                dispatcher.inputEnabled() &&
+                dispatcher.inputConfig().scrollNotchesPerSwipe == 6 &&
+                dispatcher.inputConfig().invertSwipeScroll &&
+                controller.current() == sanitizeRuntimeConfig(requested),
+            "Save applies the requested input configuration");
+
+    RecordingSystemInputBackend failedBackend;
+    ActionDispatcher failedDispatcher(failedBackend, initial.pointer,
+                                      initial.input);
+    require(failedDispatcher.initialize(), "failed modal dispatcher initializes");
+    RuntimeConfigController failedController(initial, failedDispatcher);
+    failedDispatcher.process(frameWithEvent(
+        observation(100, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+    failedBackend.failNextUp = true;
+    require(!failedController.suspendInput(error) && !error.empty() &&
+                !failedController.inputSuspended() &&
+                !failedDispatcher.inputEnabled() &&
+                failedDispatcher.buttonDown(),
+            "failed release is reported and cannot silently open settings");
+    require(failedController.suspendInput(error) &&
+                failedController.inputSuspended() &&
+                !failedDispatcher.buttonDown() &&
+                failedBackend.buttonUpCount == 1,
+            "a later settings attempt retries the failed safety release");
+    require(failedController.cancelInputSuspension(error) &&
+                failedDispatcher.inputEnabled(),
+            "successful retry still restores the pre-dialog enabled state");
+}
+
+void testUnsupportedScrollIsExplicit() {
+    NullSystemInputBackend backend;
+    require(!backend.scrollVertical(1) &&
+                backend.lastError().find("unsupported") != std::string::npos,
+            "unsupported backend reports scroll failure explicitly");
+}
+
 } // namespace
 
 int main() {
@@ -312,6 +484,10 @@ int main() {
     testDragSemanticOrder();
     testFailureRecovery();
     testSafeDefaultAndRuntimeConfigSafety();
+    testVerticalSwipeScrolling();
+    testScrollSafetyAndConfiguration();
+    testSettingsModalInputSuspension();
+    testUnsupportedScrollIsExplicit();
     std::cout << "[PASS] test_action_dispatcher (safe config + recovery)\n";
     return 0;
 }

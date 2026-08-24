@@ -48,6 +48,24 @@ const GestureObservation* ActionDispatcher::selectActiveObservation(
     return fallback;
 }
 
+const GestureEvent* ActionDispatcher::selectVerticalSwipe(
+    const GesturePipelineResult& pipelineResult) const {
+    const GestureEvent* fallback = nullptr;
+    for (std::size_t i = 0; i < pipelineResult.events.count; ++i) {
+        const GestureEvent& event = pipelineResult.events.events[i];
+        if (event.type != GestureEventType::SWIPE_UP &&
+            event.type != GestureEventType::SWIPE_DOWN) {
+            continue;
+        }
+        if (event.handedness == m_inputConfig.preferredHand) return &event;
+        if (event.handedness == Handedness::LEFT ||
+            event.handedness == Handedness::RIGHT) {
+            fallback = &event;
+        }
+    }
+    return fallback;
+}
+
 ActionDispatcher::FrameMetadata ActionDispatcher::metadata(
     const GesturePipelineResult& pipelineResult) {
     if (pipelineResult.observationCount > 0) {
@@ -64,8 +82,10 @@ ActionDispatcher::FrameMetadata ActionDispatcher::metadata(
 ActionCommand ActionDispatcher::command(ActionType type,
                                         const FrameMetadata& frame,
                                         Handedness hand,
-                                        DesktopPoint point) const {
-    return {type, point, hand, frame.frameId, frame.timestampUs};
+                                        DesktopPoint point,
+                                        int scrollNotches) const {
+    return {type, point, hand, frame.frameId, frame.timestampUs,
+            scrollNotches};
 }
 
 void ActionDispatcher::fail(ActionDispatchResult& result,
@@ -122,6 +142,16 @@ bool ActionDispatcher::dispatchMove(const ActionCommand& action,
     return false;
 }
 
+bool ActionDispatcher::dispatchScroll(const ActionCommand& action,
+                                      ActionDispatchResult& result) {
+    if (!m_backend.scrollVertical(action.scrollNotches)) {
+        fail(result, m_backend.lastError());
+        return false;
+    }
+    result.record(action);
+    return true;
+}
+
 ActionDispatchResult ActionDispatcher::process(
     const GesturePipelineResult& pipelineResult) {
     ActionDispatchResult result;
@@ -135,6 +165,7 @@ ActionDispatchResult ActionDispatcher::process(
     m_lastTimestampUs = frame.timestampUs;
     m_hasTimestamp = true;
 
+    const bool buttonWasDown = m_buttonDown;
     const GestureObservation* selected =
         selectActiveObservation(pipelineResult);
     const Handedness selectedHand = selected == nullptr
@@ -150,22 +181,40 @@ ActionDispatchResult ActionDispatcher::process(
         m_activeHand = selectedHand;
     }
 
-    if (m_activeHand == Handedness::UNKNOWN) return result;
+    if (m_activeHand != Handedness::UNKNOWN) {
+        for (std::size_t i = 0; i < pipelineResult.events.count; ++i) {
+            const GestureEvent& event = pipelineResult.events.events[i];
+            if (event.handedness != m_activeHand) continue;
+            if (event.type == GestureEventType::PINCH_BEGIN) {
+                if (!dispatchButtonDown(command(
+                        ActionType::PRIMARY_BUTTON_DOWN,
+                        {true, event.frameId, event.timestampUs},
+                        m_activeHand), result)) {
+                    return result;
+                }
+            } else if (event.type == GestureEventType::PINCH_END ||
+                       event.type == GestureEventType::PINCH_CANCEL) {
+                if (!dispatchButtonUp(command(
+                        ActionType::PRIMARY_BUTTON_UP,
+                        {true, event.frameId, event.timestampUs},
+                        m_activeHand), result)) {
+                    return result;
+                }
+            }
+        }
+    }
 
-    for (std::size_t i = 0; i < pipelineResult.events.count; ++i) {
-        const GestureEvent& event = pipelineResult.events.events[i];
-        if (event.handedness != m_activeHand) continue;
-        if (event.type == GestureEventType::PINCH_BEGIN) {
-            if (!dispatchButtonDown(command(ActionType::PRIMARY_BUTTON_DOWN,
-                                            frame, m_activeHand), result)) {
-                return result;
-            }
-        } else if (event.type == GestureEventType::PINCH_END ||
-                   event.type == GestureEventType::PINCH_CANCEL) {
-            if (!dispatchButtonUp(command(ActionType::PRIMARY_BUTTON_UP,
-                                          frame, m_activeHand), result)) {
-                return result;
-            }
+    const GestureEvent* swipe = selectVerticalSwipe(pipelineResult);
+    if (swipe != nullptr && m_inputConfig.swipeScrollEnabled &&
+        !buttonWasDown && !m_buttonDown) {
+        int notches = m_inputConfig.scrollNotchesPerSwipe;
+        if (swipe->type == GestureEventType::SWIPE_DOWN) notches = -notches;
+        if (m_inputConfig.invertSwipeScroll) notches = -notches;
+        if (!dispatchScroll(command(
+                ActionType::SCROLL_VERTICAL,
+                {true, swipe->frameId, swipe->timestampUs},
+                swipe->handedness, {}, notches), result)) {
+            return result;
         }
     }
 
@@ -194,7 +243,12 @@ bool ActionDispatcher::releaseAll() {
 }
 
 bool ActionDispatcher::setInputEnabled(bool enabled) {
-    if (enabled == m_inputEnabled) return true;
+    if (enabled == m_inputEnabled) {
+        // A prior disable may have failed to release an owned button. Allow a
+        // later safety boundary to retry the release.
+        if (!enabled && m_buttonDown) return releaseAll();
+        return true;
+    }
     if (!enabled) {
         const bool released = releaseAll();
         m_inputEnabled = false;

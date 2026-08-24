@@ -4,6 +4,8 @@
 #include <Windows.h>
 
 #include <sstream>
+#include <cstdint>
+#include <limits>
 
 #include "src/platform/windows/WindowsPointerMath.h"
 
@@ -23,7 +25,8 @@ bool WindowsSystemInputBackend::initialize() {
     return true;
 }
 
-bool WindowsSystemInputBackend::sendMouse(unsigned long flags, long x, long y) {
+bool WindowsSystemInputBackend::sendMouse(unsigned long flags, long x, long y,
+                                          long mouseData) {
     if (!m_initialized) {
         m_lastError = "Windows input backend is not initialized";
         return false;
@@ -33,6 +36,7 @@ bool WindowsSystemInputBackend::sendMouse(unsigned long flags, long x, long y) {
     input.type = INPUT_MOUSE;
     input.mi.dx = x;
     input.mi.dy = y;
+    input.mi.mouseData = static_cast<DWORD>(mouseData);
     input.mi.dwFlags = flags;
     SetLastError(ERROR_SUCCESS);
     const UINT sent = SendInput(1, &input, sizeof(INPUT));
@@ -65,6 +69,22 @@ bool WindowsSystemInputBackend::primaryButtonDown() {
 
 bool WindowsSystemInputBackend::primaryButtonUp() {
     return sendMouse(MOUSEEVENTF_LEFTUP);
+}
+
+bool WindowsSystemInputBackend::scrollVertical(int notches) {
+    if (notches == 0) {
+        m_lastError = "vertical scroll amount must be non-zero";
+        return false;
+    }
+    const std::int64_t wheelDelta =
+        static_cast<std::int64_t>(notches) * WHEEL_DELTA;
+    if (wheelDelta < std::numeric_limits<long>::min() ||
+        wheelDelta > std::numeric_limits<long>::max()) {
+        m_lastError = "vertical scroll amount exceeds Windows wheel range";
+        return false;
+    }
+    return sendMouse(MOUSEEVENTF_WHEEL, 0, 0,
+                     static_cast<long>(wheelDelta));
 }
 
 void WindowsSystemInputBackend::shutdown() {
