@@ -26,6 +26,8 @@ RuntimeConfig sanitizeRuntimeConfig(RuntimeConfig config) {
     config.pointer = sanitizePointerMappingConfig(config.pointer);
     config.filtering = sanitizeLandmarkFilterConfig(config.filtering);
     config.gestures = sanitizeGestureConfig(config.gestures);
+    config.dynamicGestures =
+        sanitizeDynamicGestureConfig(config.dynamicGestures);
     config.input = sanitizeInputConfig(config.input);
     return config;
 }

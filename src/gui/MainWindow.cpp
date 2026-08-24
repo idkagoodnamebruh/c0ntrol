@@ -14,7 +14,8 @@ MainWindow::MainWindow(RuntimeConfig config,
       m_thread(nullptr),
       m_worker(nullptr),
       m_runtimeConfig(sanitizeRuntimeConfig(config)),
-      m_gesturePipeline(m_runtimeConfig.gestures),
+      m_gesturePipeline(m_runtimeConfig.gestures,
+                        m_runtimeConfig.dynamicGestures),
       m_settingsStore(std::move(settingsStore)) {
 
     m_centralWidget = new QWidget(this);
@@ -158,9 +159,11 @@ const GestureObservation* MainWindow::selectPreferredObservation(
 
 bool MainWindow::applyRuntimeConfig(const RuntimeConfig& requested,
                                     bool reset) {
-    const RuntimeConfigApplyResult result = reset
-        ? m_configController->resetToDefaults()
-        : m_configController->apply(requested);
+    const RuntimeConfigApplyResult result =
+        m_configController->inputSuspended()
+        ? m_configController->completeInputSuspension(requested, reset)
+        : (reset ? m_configController->resetToDefaults()
+                 : m_configController->apply(requested));
     if (!result.success) {
         QMessageBox::warning(this, "Settings not applied",
             QString::fromStdString(result.error));
@@ -168,8 +171,11 @@ bool MainWindow::applyRuntimeConfig(const RuntimeConfig& requested,
     }
 
     m_runtimeConfig = m_configController->current();
-    if (result.changes.gesturesChanged)
-        m_gesturePipeline = GesturePipeline(m_runtimeConfig.gestures);
+    if (result.changes.gesturesChanged ||
+        result.changes.dynamicGesturesChanged) {
+        m_gesturePipeline = GesturePipeline(m_runtimeConfig.gestures,
+                                            m_runtimeConfig.dynamicGestures);
+    }
     if (m_worker != nullptr &&
         (result.changes.cameraRestartRequired ||
          result.changes.filteringChanged)) {
@@ -192,11 +198,33 @@ bool MainWindow::applyRuntimeConfig(const RuntimeConfig& requested,
 }
 
 void MainWindow::openSettingsDialog() {
+    std::string suspensionError;
+    if (!m_configController->suspendInput(suspensionError)) {
+        QMessageBox::warning(this, "Settings unavailable",
+            "Native input could not be safely suspended: " +
+            QString::fromStdString(suspensionError));
+        return;
+    }
+
     SettingsDialog dialog(m_runtimeConfig, this);
     m_activeSettingsDialog = &dialog;
     const int result = dialog.exec();
     m_activeSettingsDialog = nullptr;
-    if (result == QDialog::Accepted)
-        (void)applyRuntimeConfig(dialog.runtimeConfig(),
-                                 dialog.resetRequested());
+    if (result == QDialog::Accepted) {
+        if (!applyRuntimeConfig(dialog.runtimeConfig(),
+                                dialog.resetRequested())) {
+            std::string restoreError;
+            if (!m_configController->cancelInputSuspension(restoreError)) {
+                qWarning() << "[NATIVE INPUT] restore after failed settings:"
+                           << QString::fromStdString(restoreError);
+            }
+        }
+        return;
+    }
+
+    std::string restoreError;
+    if (!m_configController->cancelInputSuspension(restoreError)) {
+        QMessageBox::warning(this, "Input restore failed",
+            QString::fromStdString(restoreError));
+    }
 }

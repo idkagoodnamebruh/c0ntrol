@@ -132,9 +132,32 @@ SettingsMap encodeRuntimeConfig(const RuntimeConfig& rawConfig) {
     values["gesture/handScaleEpsilon"] =
         encodeDouble(config.gestures.handScaleEpsilon);
 
+    values["dynamic/enabled"] =
+        config.dynamicGestures.enabled ? "true" : "false";
+    values["dynamic/swipeMinDistanceHandScales"] = encodeDouble(
+        config.dynamicGestures.swipeMinDistanceHandScales);
+    values["dynamic/swipeMinVelocityHandScalesPerSecond"] = encodeDouble(
+        config.dynamicGestures.swipeMinVelocityHandScalesPerSecond);
+    values["dynamic/directionDominanceRatio"] = encodeDouble(
+        config.dynamicGestures.directionDominanceRatio);
+    values["dynamic/swipeMaxDurationUs"] =
+        std::to_string(config.dynamicGestures.swipeMaxDurationUs);
+    values["dynamic/maxSampleGapUs"] =
+        std::to_string(config.dynamicGestures.maxSampleGapUs);
+    values["dynamic/cooldownUs"] =
+        std::to_string(config.dynamicGestures.cooldownUs);
+    values["dynamic/minimumSamples"] =
+        std::to_string(config.dynamicGestures.minimumSamples);
+
     values["input/enabled"] = config.input.enabled ? "true" : "false";
     values["input/preferredHand"] =
         config.input.preferredHand == Handedness::LEFT ? "LEFT" : "RIGHT";
+    values["input/swipeScrollEnabled"] =
+        config.input.swipeScrollEnabled ? "true" : "false";
+    values["input/scrollNotchesPerSwipe"] =
+        std::to_string(config.input.scrollNotchesPerSwipe);
+    values["input/invertSwipeScroll"] =
+        config.input.invertSwipeScroll ? "true" : "false";
     return values;
 }
 
@@ -229,6 +252,30 @@ ConfigDecodeResult decodeRuntimeConfig(const SettingsMap& values) {
               config.gestures.handScaleEpsilon,
               parseDouble, missing, invalid);
 
+    readValue(values, "dynamic/enabled", config.dynamicGestures.enabled,
+              parseBool, missing, invalid);
+    readValue(values, "dynamic/swipeMinDistanceHandScales",
+              config.dynamicGestures.swipeMinDistanceHandScales,
+              parseDouble, missing, invalid);
+    readValue(values, "dynamic/swipeMinVelocityHandScalesPerSecond",
+              config.dynamicGestures.swipeMinVelocityHandScalesPerSecond,
+              parseDouble, missing, invalid);
+    readValue(values, "dynamic/directionDominanceRatio",
+              config.dynamicGestures.directionDominanceRatio,
+              parseDouble, missing, invalid);
+    readValue(values, "dynamic/swipeMaxDurationUs",
+              config.dynamicGestures.swipeMaxDurationUs,
+              parseInteger<std::int64_t>, missing, invalid);
+    readValue(values, "dynamic/maxSampleGapUs",
+              config.dynamicGestures.maxSampleGapUs,
+              parseInteger<std::int64_t>, missing, invalid);
+    readValue(values, "dynamic/cooldownUs",
+              config.dynamicGestures.cooldownUs,
+              parseInteger<std::int64_t>, missing, invalid);
+    readValue(values, "dynamic/minimumSamples",
+              config.dynamicGestures.minimumSamples,
+              parseInteger<std::size_t>, missing, invalid);
+
     readValue(values, "input/enabled", config.input.enabled,
               parseBool, missing, invalid);
     const auto preferred = values.find("input/preferredHand");
@@ -241,6 +288,15 @@ ConfigDecodeResult decodeRuntimeConfig(const SettingsMap& values) {
     } else {
         ++invalid;
     }
+    readValue(values, "input/swipeScrollEnabled",
+              config.input.swipeScrollEnabled,
+              parseBool, missing, invalid);
+    readValue(values, "input/scrollNotchesPerSwipe",
+              config.input.scrollNotchesPerSwipe,
+              parseInteger<int>, missing, invalid);
+    readValue(values, "input/invertSwipeScroll",
+              config.input.invertSwipeScroll,
+              parseBool, missing, invalid);
 
     result.config = sanitizeRuntimeConfig(config);
     const bool normalized = result.config != config;

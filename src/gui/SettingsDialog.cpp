@@ -15,11 +15,18 @@ SettingsDialog::SettingsDialog(RuntimeConfig config, QWidget* parent)
     auto* layout = new QVBoxLayout(this);
     auto* form = new QFormLayout();
     m_inputEnabled = new QCheckBox("Enable native pointer input", this);
+    m_swipeScrollEnabled = new QCheckBox("Enable swipe scrolling", this);
+    m_scrollNotches = new QSpinBox(this);
+    m_scrollNotches->setRange(1, 10);
+    m_invertSwipeScroll = new QCheckBox("Invert swipe scroll", this);
     m_cameraIndex = new QSpinBox(this);
     m_cameraIndex->setRange(0, 63);
     m_mirrorX = new QCheckBox("Mirror horizontal axis", this);
     m_mirrorY = new QCheckBox("Mirror vertical axis", this);
     form->addRow(m_inputEnabled);
+    form->addRow(m_swipeScrollEnabled);
+    form->addRow("Scroll amount (notches)", m_scrollNotches);
+    form->addRow(m_invertSwipeScroll);
     form->addRow("Camera index", m_cameraIndex);
     form->addRow(m_mirrorX);
     form->addRow(m_mirrorY);
@@ -47,6 +54,10 @@ SettingsDialog::SettingsDialog(RuntimeConfig config, QWidget* parent)
 
 void SettingsDialog::loadControls() {
     m_inputEnabled->setChecked(m_config.input.enabled);
+    m_swipeScrollEnabled->setChecked(
+        m_config.input.swipeScrollEnabled);
+    m_scrollNotches->setValue(m_config.input.scrollNotchesPerSwipe);
+    m_invertSwipeScroll->setChecked(m_config.input.invertSwipeScroll);
     m_cameraIndex->setValue(m_config.camera.index);
     m_mirrorX->setChecked(m_config.pointer.mirrorX);
     m_mirrorY->setChecked(m_config.pointer.mirrorY);
@@ -54,6 +65,9 @@ void SettingsDialog::loadControls() {
 
 void SettingsDialog::storeControls() {
     m_config.input.enabled = m_inputEnabled->isChecked();
+    m_config.input.swipeScrollEnabled = m_swipeScrollEnabled->isChecked();
+    m_config.input.scrollNotchesPerSwipe = m_scrollNotches->value();
+    m_config.input.invertSwipeScroll = m_invertSwipeScroll->isChecked();
     m_config.camera.index = m_cameraIndex->value();
     m_config.pointer.mirrorX = m_mirrorX->isChecked();
     m_config.pointer.mirrorY = m_mirrorY->isChecked();

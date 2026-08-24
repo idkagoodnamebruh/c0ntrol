@@ -17,7 +17,7 @@ void require(bool condition, const char* message) {
 
 int main() {
     const RuntimeConfig defaults;
-    require(defaults.configVersion == 1, "schema default is version 1");
+    require(defaults.configVersion == 2, "schema default is version 2");
     require(!defaults.input.enabled,
             "native input is disabled on first run");
     require(defaults.camera.index == 0 &&
@@ -45,7 +45,16 @@ int main() {
     invalid.gestures.pinchExitRatio = 0.4;
     invalid.gestures.pinchEnterHoldUs = -1;
     invalid.gestures.pinchExitHoldUs = -1;
+    invalid.dynamicGestures.swipeMinDistanceHandScales = 0.0;
+    invalid.dynamicGestures.swipeMinVelocityHandScalesPerSecond =
+        std::numeric_limits<double>::quiet_NaN();
+    invalid.dynamicGestures.directionDominanceRatio = 1.0;
+    invalid.dynamicGestures.swipeMaxDurationUs = 0;
+    invalid.dynamicGestures.maxSampleGapUs = -1;
+    invalid.dynamicGestures.cooldownUs = -1;
+    invalid.dynamicGestures.minimumSamples = 1;
     invalid.input.preferredHand = Handedness::UNKNOWN;
+    invalid.input.scrollNotchesPerSwipe = 99;
 
     const RuntimeConfig sane = sanitizeRuntimeConfig(invalid);
     require(sane.configVersion == kRuntimeConfigVersion,
@@ -68,8 +77,11 @@ int main() {
                 sane.gestures.pinchEnterHoldUs >= 0 &&
                 sane.gestures.pinchExitHoldUs >= 0,
             "gesture hysteresis and hold times are valid");
-    require(sane.input.preferredHand == Handedness::RIGHT,
-            "invalid hand uses canonical preference");
+    require(sane.dynamicGestures == defaults.dynamicGestures,
+            "invalid dynamic thresholds use canonical finite defaults");
+    require(sane.input.preferredHand == Handedness::RIGHT &&
+                sane.input.scrollNotchesPerSwipe == 3,
+            "invalid input values use canonical defaults");
 
     RuntimeConfig immediate;
     immediate.gestures.pinchEnterHoldUs = 0;

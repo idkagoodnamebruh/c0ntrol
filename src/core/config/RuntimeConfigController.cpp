@@ -14,6 +14,37 @@ RuntimeConfigApplyResult RuntimeConfigController::resetToDefaults() {
     return applyInternal(RuntimeConfig{}, true);
 }
 
+bool RuntimeConfigController::suspendInput(std::string& error) {
+    error.clear();
+    if (m_inputSuspended) return true;
+    m_restoreInputAfterSuspension = m_current.input.enabled;
+    const bool disabled = m_actionDispatcher.setInputEnabled(false);
+    m_inputSuspended = disabled;
+    if (!disabled) error = m_actionDispatcher.lastError();
+    return disabled;
+}
+
+bool RuntimeConfigController::cancelInputSuspension(std::string& error) {
+    error.clear();
+    if (!m_inputSuspended) return true;
+    if (!m_actionDispatcher.setInputEnabled(
+            m_restoreInputAfterSuspension)) {
+        error = m_actionDispatcher.lastError();
+        return false;
+    }
+    m_inputSuspended = false;
+    return true;
+}
+
+RuntimeConfigApplyResult RuntimeConfigController::completeInputSuspension(
+    const RuntimeConfig& requested, bool resetToDefaults) {
+    RuntimeConfigApplyResult result = resetToDefaults
+        ? applyInternal(RuntimeConfig{}, true)
+        : applyInternal(requested, false);
+    if (result.success) m_inputSuspended = false;
+    return result;
+}
+
 RuntimeConfigApplyResult RuntimeConfigController::applyInternal(
     const RuntimeConfig& requested, bool forceRelease) {
     const RuntimeConfig sanitized = sanitizeRuntimeConfig(requested);
@@ -24,6 +55,8 @@ RuntimeConfigApplyResult RuntimeConfigController::applyInternal(
         sanitized.filtering != m_current.filtering;
     result.changes.gesturesChanged =
         sanitized.gestures != m_current.gestures;
+    result.changes.dynamicGesturesChanged =
+        sanitized.dynamicGestures != m_current.dynamicGestures;
     result.changes.pointerChanged =
         sanitized.pointer != m_current.pointer;
     result.changes.inputChanged = sanitized.input != m_current.input;

@@ -29,6 +29,9 @@ private:
     RuntimeConfig m_config;
     bool m_resetRequested{false};
     QCheckBox* m_inputEnabled;
+    QCheckBox* m_swipeScrollEnabled;
+    QSpinBox* m_scrollNotches;
+    QCheckBox* m_invertSwipeScroll;
     QSpinBox* m_cameraIndex;
     QCheckBox* m_mirrorX;
     QCheckBox* m_mirrorY;
