@@ -8,14 +8,18 @@
 #include "src/core/tracking/MediaPipeHandTrackingBackend.h"
 #endif
 
-VisionWorker::VisionWorker(QObject* parent)
-    : QObject(parent), m_cameraIndex(0), m_consumerTimer(new QTimer(this)) {
+VisionWorker::VisionWorker(CameraConfig cameraConfig,
+                           LandmarkFilterConfig filterConfig,
+                           QObject* parent)
+    : QObject(parent),
+      m_cameraConfig(sanitizeCameraConfig(cameraConfig)),
+      m_consumerTimer(new QTimer(this)),
+      m_landmarkFilterBank(sanitizeLandmarkFilterConfig(filterConfig)) {
 #ifdef C0NTROL_ENABLE_MEDIAPIPE
     m_trackingBackend = std::make_unique<MediaPipeHandTrackingBackend>();
 #else
     m_trackingBackend = std::make_unique<MockHandTrackingBackend>();
 #endif
-    m_cameraConfig.index = m_cameraIndex;
     auto source = std::make_unique<OpenCVCameraSource>(m_cameraConfig);
     m_captureSource = source.get();
     m_capture = std::make_unique<AsyncCapture<cv::Mat>>(std::move(source));
@@ -32,15 +36,27 @@ VisionWorker::~VisionWorker() {
     stop();
 }
 
-void VisionWorker::setCameraIndex(int index) {
-    m_cameraIndex = index;
-    m_cameraConfig.index = index;
-    if (m_captureSource != nullptr && !m_running)
-        (void)m_captureSource->setConfig(m_cameraConfig);
-}
-
 void VisionWorker::setFilteringEnabled(bool enabled) {
     m_landmarkFilterBank.setEnabled(enabled);
+}
+
+void VisionWorker::applyConfiguration(
+    const CameraConfig& cameraConfig,
+    const LandmarkFilterConfig& filterConfig) {
+    const CameraConfig sanitizedCamera = sanitizeCameraConfig(cameraConfig);
+    const LandmarkFilterConfig sanitizedFilter =
+        sanitizeLandmarkFilterConfig(filterConfig);
+    const bool cameraChanged = sanitizedCamera != m_cameraConfig;
+    const bool wasRunning = m_running;
+    if (cameraChanged && wasRunning) stop();
+
+    m_cameraConfig = sanitizedCamera;
+    if (cameraChanged && m_captureSource != nullptr)
+        (void)m_captureSource->setConfig(m_cameraConfig);
+    if (sanitizedFilter != m_landmarkFilterBank.config())
+        m_landmarkFilterBank = LandmarkFilterBank(sanitizedFilter);
+
+    if (cameraChanged && wasRunning) start();
 }
 
 void VisionWorker::start() {

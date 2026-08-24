@@ -20,16 +20,19 @@ class VisionWorker : public QObject {
     Q_OBJECT
 
 public:
-    explicit VisionWorker(QObject* parent = nullptr);
+    explicit VisionWorker(CameraConfig cameraConfig = {},
+                          LandmarkFilterConfig filterConfig = {},
+                          QObject* parent = nullptr);
     ~VisionWorker();
 
-    void setCameraIndex(int index);
     bool filteringEnabled() const { return m_landmarkFilterBank.enabled(); }
 
 public slots:
     void start();
     void stop();
     void setFilteringEnabled(bool enabled);
+    void applyConfiguration(const CameraConfig& cameraConfig,
+                            const LandmarkFilterConfig& filterConfig);
 
 signals:
     void frameProcessed(const QImage& frame, const Landmarks& landmarks);
@@ -46,7 +49,6 @@ private:
                               const QString& detail);
     static std::int64_t steadyNowUs();
 
-    int m_cameraIndex;
     CameraConfig m_cameraConfig;
     OpenCVCameraSource* m_captureSource{nullptr};
     std::unique_ptr<AsyncCapture<cv::Mat>> m_capture;

@@ -1,8 +1,12 @@
 #include "ActionDispatcher.h"
 
 ActionDispatcher::ActionDispatcher(ISystemInputBackend& backend,
-                                   PointerMappingConfig mappingConfig)
-    : m_backend(backend), m_pointerMapper(mappingConfig) {}
+                                   PointerMappingConfig mappingConfig,
+                                   InputConfig inputConfig)
+    : m_backend(backend),
+      m_pointerMapper(mappingConfig),
+      m_inputConfig(sanitizeInputConfig(inputConfig)),
+      m_inputEnabled(m_inputConfig.enabled) {}
 
 ActionDispatcher::~ActionDispatcher() {
     shutdown();
@@ -23,21 +27,25 @@ bool ActionDispatcher::initialize() {
         return false;
     }
     m_initialized = true;
-    m_inputEnabled = true;
+    m_inputEnabled = m_inputConfig.enabled;
     m_lastError.clear();
     return true;
 }
 
 const GestureObservation* ActionDispatcher::selectActiveObservation(
     const GesturePipelineResult& pipelineResult) const {
-    const GestureObservation* left = nullptr;
+    const GestureObservation* fallback = nullptr;
     for (std::size_t i = 0; i < pipelineResult.observationCount; ++i) {
         const auto& observation = pipelineResult.observations[i];
         if (!observation.valid || !observation.pointerActive) continue;
-        if (observation.handedness == Handedness::RIGHT) return &observation;
-        if (observation.handedness == Handedness::LEFT) left = &observation;
+        if (observation.handedness == m_inputConfig.preferredHand)
+            return &observation;
+        if (observation.handedness == Handedness::LEFT ||
+            observation.handedness == Handedness::RIGHT) {
+            fallback = &observation;
+        }
     }
-    return left;
+    return fallback;
 }
 
 ActionDispatcher::FrameMetadata ActionDispatcher::metadata(
@@ -190,6 +198,7 @@ bool ActionDispatcher::setInputEnabled(bool enabled) {
     if (!enabled) {
         const bool released = releaseAll();
         m_inputEnabled = false;
+        m_inputConfig.enabled = false;
         m_activeHand = Handedness::UNKNOWN;
         return released;
     }
@@ -198,6 +207,30 @@ bool ActionDispatcher::setInputEnabled(bool enabled) {
     m_activeHand = Handedness::UNKNOWN;
     m_hasTimestamp = false;
     m_inputEnabled = true;
+    m_inputConfig.enabled = true;
+    return true;
+}
+
+bool ActionDispatcher::applyConfiguration(
+    PointerMappingConfig mappingConfig, InputConfig inputConfig) {
+    mappingConfig = sanitizePointerMappingConfig(mappingConfig);
+    inputConfig = sanitizeInputConfig(inputConfig);
+    if (mappingConfig == m_pointerMapper.config() &&
+        inputConfig == m_inputConfig) {
+        return true;
+    }
+
+    if (!releaseAll()) return false;
+    if (inputConfig.enabled && !m_initialized) {
+        m_lastError = "cannot enable an uninitialized input backend";
+        return false;
+    }
+    m_pointerMapper = PointerMapper(mappingConfig);
+    m_inputConfig = inputConfig;
+    m_inputEnabled = inputConfig.enabled;
+    m_activeHand = Handedness::UNKNOWN;
+    m_hasTimestamp = false;
+    m_lastError.clear();
     return true;
 }
 
