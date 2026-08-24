@@ -3,6 +3,8 @@ project(c0ntrol VERSION 1.0 LANGUAGES CXX)
 
 option(BUILD_APP "Build c0ntrol desktop application" ON)
 option(ENABLE_MEDIAPIPE "Build the MediaPipe Hand Landmarker backend" OFF)
+option(ENABLE_NATIVE_INPUT_SMOKE
+       "Build the manual opt-in Windows native input smoke tool" OFF)
 set(MEDIAPIPE_BRIDGE_LIBRARY "" CACHE FILEPATH "Pinned c0ntrol MediaPipe bridge shared library")
 include(CTest)
 
@@ -56,6 +58,18 @@ if(BUILD_APP)
     endif()
 endif()
 
+if(WIN32 AND ENABLE_NATIVE_INPUT_SMOKE)
+    add_executable(c0ntrol_native_input_smoke
+        tools/native_input_smoke.cpp
+        src/platform/windows/WindowsSystemInputBackend.cpp
+        src/platform/windows/WindowsPointerMath.cpp
+    )
+    target_include_directories(c0ntrol_native_input_smoke
+        PRIVATE ${CMAKE_SOURCE_DIR}
+    )
+    target_link_libraries(c0ntrol_native_input_smoke PRIVATE user32)
+endif()
+
 if(BUILD_TESTING)
     find_package(Threads REQUIRED)
 
@@ -99,6 +113,27 @@ if(BUILD_TESTING)
     add_core_test(test_action_dispatcher
         tests/test_action_dispatcher.cpp
         src/core/actions/ActionDispatcher.cpp
+        src/core/actions/PointerMapper.cpp
+        src/core/config/RuntimeConfig.cpp
+        src/core/config/RuntimeConfigController.cpp
+        src/core/filters/LandmarkFilterBank.cpp
+    )
+    add_core_test(test_runtime_config
+        tests/test_runtime_config.cpp
+        src/core/config/RuntimeConfig.cpp
+        src/core/actions/PointerMapper.cpp
+        src/core/filters/LandmarkFilterBank.cpp
+    )
+    add_core_test(test_settings_serialization
+        tests/test_settings_serialization.cpp
+        src/core/config/SettingsCodec.cpp
+        src/core/config/RuntimeConfig.cpp
+        src/core/actions/PointerMapper.cpp
+        src/core/filters/LandmarkFilterBank.cpp
+    )
+    add_core_test(test_pointer_calibration
+        tests/test_pointer_calibration.cpp
+        src/core/calibration/PointerCalibration.cpp
         src/core/actions/PointerMapper.cpp
     )
     add_core_test(test_latest_frame_slot tests/test_latest_frame_slot.cpp)

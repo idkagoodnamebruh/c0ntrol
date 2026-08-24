@@ -26,6 +26,7 @@ jobs:
           -DBUILD_APP=OFF
           -DBUILD_TESTING=ON
           -DENABLE_MEDIAPIPE=OFF
+          -DENABLE_NATIVE_INPUT_SMOKE=ON
 
       - name: Build
         shell: pwsh
