@@ -78,8 +78,8 @@ bool WindowsSystemInputBackend::scrollVertical(int notches) {
     }
     const std::int64_t wheelDelta =
         static_cast<std::int64_t>(notches) * WHEEL_DELTA;
-    if (wheelDelta < std::numeric_limits<long>::min() ||
-        wheelDelta > std::numeric_limits<long>::max()) {
+    if (wheelDelta < (std::numeric_limits<long>::min)() ||
+        wheelDelta > (std::numeric_limits<long>::max)()) {
         m_lastError = "vertical scroll amount exceeds Windows wheel range";
         return false;
     }
