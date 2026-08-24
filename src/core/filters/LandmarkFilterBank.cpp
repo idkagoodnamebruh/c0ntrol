@@ -38,18 +38,22 @@ void LandmarkFilterBank::HandState::reset() {
     hasFiniteWrist = false;
 }
 
-LandmarkFilterConfig LandmarkFilterBank::sanitizeConfig(
+LandmarkFilterConfig sanitizeLandmarkFilterConfig(
     LandmarkFilterConfig config) {
-    if (config.handResetTimeoutUs <= 0) config.handResetTimeoutUs = 400'000;
+    const LandmarkFilterConfig defaults;
+    config.normalized = sanitizeOneEuroConfig(config.normalized);
+    config.world = sanitizeOneEuroConfig(config.world);
+    if (config.handResetTimeoutUs <= 0)
+        config.handResetTimeoutUs = defaults.handResetTimeoutUs;
     if (!std::isfinite(config.teleportThreshold) ||
         config.teleportThreshold <= 0.0) {
-        config.teleportThreshold = 0.35;
+        config.teleportThreshold = defaults.teleportThreshold;
     }
     return config;
 }
 
 LandmarkFilterBank::LandmarkFilterBank(LandmarkFilterConfig config)
-    : m_config(sanitizeConfig(config)),
+    : m_config(sanitizeLandmarkFilterConfig(config)),
       m_left(m_config.normalized, m_config.world),
       m_right(m_config.normalized, m_config.world) {}
 

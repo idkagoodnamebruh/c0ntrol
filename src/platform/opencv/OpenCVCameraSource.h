@@ -7,19 +7,12 @@
 #include <string>
 
 #include "src/core/capture/ICameraSource.h"
+#include "src/core/config/RuntimeConfig.h"
 
 enum class CameraPropertySupport {
     UNKNOWN,
     SUPPORTED,
     NOT_SUPPORTED,
-};
-
-struct CameraConfig {
-    int index{0};
-    int requestedWidth{640};
-    int requestedHeight{480};
-    double requestedFps{30.0};
-    int requestedBufferSize{1};
 };
 
 struct CameraInfo {

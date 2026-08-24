@@ -9,7 +9,26 @@ struct OneEuroConfig {
     double beta{0.05};
     double derivativeCutoff{1.0};
     double maxDeltaSeconds{1.0};
+
+    bool operator==(const OneEuroConfig&) const = default;
 };
+
+inline OneEuroConfig sanitizeOneEuroConfig(OneEuroConfig config) {
+    const OneEuroConfig defaults;
+    if (!std::isfinite(config.minCutoff) || config.minCutoff <= 0.0)
+        config.minCutoff = defaults.minCutoff;
+    if (!std::isfinite(config.beta) || config.beta < 0.0)
+        config.beta = defaults.beta;
+    if (!std::isfinite(config.derivativeCutoff) ||
+        config.derivativeCutoff <= 0.0) {
+        config.derivativeCutoff = defaults.derivativeCutoff;
+    }
+    if (!std::isfinite(config.maxDeltaSeconds) ||
+        config.maxDeltaSeconds <= 0.0) {
+        config.maxDeltaSeconds = defaults.maxDeltaSeconds;
+    }
+    return config;
+}
 
 // A One Euro filter for exactly one scalar channel. Timestamps are seconds.
 class OneEuroFilter {
@@ -18,10 +37,7 @@ public:
     explicit OneEuroFilter(OneEuroConfig config) { configure(config); }
 
     void configure(OneEuroConfig config) {
-        m_config.minCutoff = positiveOr(config.minCutoff, 1.0);
-        m_config.beta = nonNegativeOr(config.beta, 0.0);
-        m_config.derivativeCutoff = positiveOr(config.derivativeCutoff, 1.0);
-        m_config.maxDeltaSeconds = positiveOr(config.maxDeltaSeconds, 1.0);
+        m_config = sanitizeOneEuroConfig(config);
         reset();
     }
 
@@ -99,14 +115,6 @@ private:
         double m_value{0.0};
         bool m_initialized{false};
     };
-
-    static double positiveOr(double value, double fallback) {
-        return std::isfinite(value) && value > 0.0 ? value : fallback;
-    }
-
-    static double nonNegativeOr(double value, double fallback) {
-        return std::isfinite(value) && value >= 0.0 ? value : fallback;
-    }
 
     static double alpha(double cutoff, double dt) {
         constexpr double pi = 3.14159265358979323846;

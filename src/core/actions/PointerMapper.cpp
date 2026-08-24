@@ -5,31 +5,34 @@
 
 namespace {
 
-double validMargin(double value) {
+double validMargin(double value, double fallback) {
     return std::isfinite(value) && value >= 0.0 && value < 1.0
-        ? value : 0.0;
+        ? value : fallback;
 }
 
 } // namespace
 
-PointerMappingConfig PointerMapper::sanitize(PointerMappingConfig config) {
-    config.leftMargin = validMargin(config.leftMargin);
-    config.rightMargin = validMargin(config.rightMargin);
-    config.topMargin = validMargin(config.topMargin);
-    config.bottomMargin = validMargin(config.bottomMargin);
+PointerMappingConfig sanitizePointerMappingConfig(
+    PointerMappingConfig config) {
+    const PointerMappingConfig defaults;
+    config.leftMargin = validMargin(config.leftMargin, defaults.leftMargin);
+    config.rightMargin = validMargin(config.rightMargin, defaults.rightMargin);
+    config.topMargin = validMargin(config.topMargin, defaults.topMargin);
+    config.bottomMargin = validMargin(config.bottomMargin,
+                                      defaults.bottomMargin);
     if (config.leftMargin + config.rightMargin >= 1.0) {
-        config.leftMargin = 0.0;
-        config.rightMargin = 0.0;
+        config.leftMargin = defaults.leftMargin;
+        config.rightMargin = defaults.rightMargin;
     }
     if (config.topMargin + config.bottomMargin >= 1.0) {
-        config.topMargin = 0.0;
-        config.bottomMargin = 0.0;
+        config.topMargin = defaults.topMargin;
+        config.bottomMargin = defaults.bottomMargin;
     }
     return config;
 }
 
 PointerMapper::PointerMapper(PointerMappingConfig config)
-    : m_config(sanitize(config)) {}
+    : m_config(sanitizePointerMappingConfig(config)) {}
 
 double PointerMapper::mapAxis(double value, double lowMargin,
                               double highMargin, bool mirror) {

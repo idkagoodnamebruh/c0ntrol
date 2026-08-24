@@ -20,32 +20,39 @@ struct GestureConfig {
     double thumbExtendedMaxCurl{0.30};
     double thumbMinSpreadRatio{0.50};
     double handScaleEpsilon{1e-6};
+
+    bool operator==(const GestureConfig&) const = default;
 };
 
 inline GestureConfig sanitizeGestureConfig(GestureConfig config) {
-    if (!std::isfinite(config.pinchEnterRatio) || config.pinchEnterRatio <= 0.0)
-        config.pinchEnterRatio = 0.25;
-    if (!std::isfinite(config.pinchExitRatio) ||
-        config.pinchExitRatio <= config.pinchEnterRatio)
-        config.pinchExitRatio = config.pinchEnterRatio + 0.10;
-    if (config.pinchEnterHoldUs <= 0) config.pinchEnterHoldUs = 75'000;
-    if (config.pinchExitHoldUs <= 0) config.pinchExitHoldUs = 75'000;
-    if (config.trackingLostTimeoutUs <= 0)
-        config.trackingLostTimeoutUs = 150'000;
+    const GestureConfig defaults;
+    if (!std::isfinite(config.pinchEnterRatio) ||
+        !std::isfinite(config.pinchExitRatio) ||
+        config.pinchEnterRatio <= 0.0 ||
+        config.pinchExitRatio <= config.pinchEnterRatio) {
+        config.pinchEnterRatio = defaults.pinchEnterRatio;
+        config.pinchExitRatio = defaults.pinchExitRatio;
+    }
+    if (config.pinchEnterHoldUs < 0)
+        config.pinchEnterHoldUs = defaults.pinchEnterHoldUs;
+    if (config.pinchExitHoldUs < 0)
+        config.pinchExitHoldUs = defaults.pinchExitHoldUs;
+    if (config.trackingLostTimeoutUs < 0)
+        config.trackingLostTimeoutUs = defaults.trackingLostTimeoutUs;
     if (!std::isfinite(config.fingerExtendedMaxCurl) ||
         config.fingerExtendedMaxCurl < 0.0)
-        config.fingerExtendedMaxCurl = 0.22;
+        config.fingerExtendedMaxCurl = defaults.fingerExtendedMaxCurl;
     if (!std::isfinite(config.fingerCurledMinCurl) ||
         config.fingerCurledMinCurl <= config.fingerExtendedMaxCurl)
-        config.fingerCurledMinCurl = 0.38;
+        config.fingerCurledMinCurl = defaults.fingerCurledMinCurl;
     if (!std::isfinite(config.thumbExtendedMaxCurl) ||
         config.thumbExtendedMaxCurl < 0.0)
-        config.thumbExtendedMaxCurl = 0.30;
+        config.thumbExtendedMaxCurl = defaults.thumbExtendedMaxCurl;
     if (!std::isfinite(config.thumbMinSpreadRatio) ||
         config.thumbMinSpreadRatio <= 0.0)
-        config.thumbMinSpreadRatio = 0.50;
+        config.thumbMinSpreadRatio = defaults.thumbMinSpreadRatio;
     if (!std::isfinite(config.handScaleEpsilon) || config.handScaleEpsilon <= 0.0)
-        config.handScaleEpsilon = 1e-6;
+        config.handScaleEpsilon = defaults.handScaleEpsilon;
     return config;
 }
 

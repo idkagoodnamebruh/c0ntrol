@@ -13,7 +13,12 @@ struct PointerMappingConfig {
     double rightMargin{0.0};
     double topMargin{0.0};
     double bottomMargin{0.0};
+
+    bool operator==(const PointerMappingConfig&) const = default;
 };
+
+PointerMappingConfig sanitizePointerMappingConfig(
+    PointerMappingConfig config);
 
 class PointerMapper {
 public:
@@ -26,7 +31,6 @@ public:
     const PointerMappingConfig& config() const { return m_config; }
 
 private:
-    static PointerMappingConfig sanitize(PointerMappingConfig config);
     static double mapAxis(double value, double lowMargin, double highMargin,
                           bool mirror);
 
