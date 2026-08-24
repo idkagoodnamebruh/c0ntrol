@@ -89,7 +89,8 @@ int main() {
     windowClass.lpfnWndProc = smokeWindowProc;
     windowClass.hInstance = GetModuleHandleW(nullptr);
     windowClass.lpszClassName = className;
-    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.hCursor =
+        LoadCursorW(nullptr, MAKEINTRESOURCEW(OCR_NORMAL));
     windowClass.hbrBackground =
         reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     if (!RegisterClassW(&windowClass) && GetLastError() !=
