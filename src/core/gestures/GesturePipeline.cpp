@@ -3,35 +3,55 @@
 namespace {
 
 void appendEvents(const GestureEventBatch& source,
-                  GestureEventBuffer<8>& destination) {
+                  GestureEventBuffer<12>& destination) {
     for (std::size_t i = 0; i < source.count; ++i)
         destination.push(source.events[i]);
 }
 
 } // namespace
 
-GesturePipeline::GesturePipeline(GestureConfig config)
+GesturePipeline::GesturePipeline(GestureConfig config,
+                                 DynamicGestureConfig dynamicConfig)
     : m_featureExtractor(config),
       m_engine(config),
       m_leftStateMachine(Handedness::LEFT, config),
-      m_rightStateMachine(Handedness::RIGHT, config) {}
+      m_rightStateMachine(Handedness::RIGHT, config),
+      m_leftDynamicRecognizer(Handedness::LEFT, dynamicConfig),
+      m_rightDynamicRecognizer(Handedness::RIGHT, dynamicConfig) {}
 
-GestureObservation GesturePipeline::observeHand(
+GesturePipeline::HandResult GesturePipeline::observeHand(
     const TrackedHand* hand, Handedness expectedHandedness,
     const HandTrackingFrame& frame) const {
     if (hand != nullptr) {
-        HandFeatures features = m_featureExtractor.extract(*hand);
-        GestureObservation observation =
-            m_engine.observe(features, frame.frameId, frame.timestampUs);
-        observation.handedness = expectedHandedness;
-        return observation;
+        HandResult result;
+        result.features = m_featureExtractor.extract(*hand);
+        result.observation = m_engine.observe(
+            result.features, frame.frameId, frame.timestampUs);
+        result.observation.handedness = expectedHandedness;
+        return result;
     }
 
-    GestureObservation missing;
-    missing.handedness = expectedHandedness;
-    missing.frameId = frame.frameId;
-    missing.timestampUs = frame.timestampUs;
-    return missing;
+    HandResult result;
+    result.observation.handedness = expectedHandedness;
+    result.observation.frameId = frame.frameId;
+    result.observation.timestampUs = frame.timestampUs;
+    return result;
+}
+
+void GesturePipeline::processHand(
+    const HandResult& hand, GestureStateMachine& stateMachine,
+    DynamicGestureRecognizer& recognizer, GesturePipelineResult& result) {
+    if (hand.observation.valid)
+        result.observations[result.observationCount++] = hand.observation;
+    appendEvents(stateMachine.update(hand.observation), result.events);
+    if (!hand.observation.valid) {
+        recognizer.reset();
+        return;
+    }
+    const auto dynamicEvent = recognizer.update(
+        hand.features, hand.observation.pose,
+        hand.observation.frameId, hand.observation.timestampUs);
+    if (dynamicEvent.has_value()) result.events.push(*dynamicEvent);
 }
 
 GesturePipelineResult GesturePipeline::process(const HandTrackingFrame& frame) {
@@ -54,21 +74,20 @@ GesturePipelineResult GesturePipeline::process(const HandTrackingFrame& frame) {
 
     // A duplicate or UNKNOWN handedness is ambiguous. Treat that nominal slot
     // as missing instead of allowing one hand to mutate the other hand's FSM.
-    const GestureObservation left = observeHand(
+    const HandResult left = observeHand(
         leftCount == 1 ? leftHand : nullptr, Handedness::LEFT, frame);
-    const GestureObservation right = observeHand(
+    const HandResult right = observeHand(
         rightCount == 1 ? rightHand : nullptr, Handedness::RIGHT, frame);
 
     GesturePipelineResult result;
-    if (left.valid) result.observations[result.observationCount++] = left;
-    if (right.valid) result.observations[result.observationCount++] = right;
-
-    appendEvents(m_leftStateMachine.update(left), result.events);
-    appendEvents(m_rightStateMachine.update(right), result.events);
+    processHand(left, m_leftStateMachine, m_leftDynamicRecognizer, result);
+    processHand(right, m_rightStateMachine, m_rightDynamicRecognizer, result);
     return result;
 }
 
 void GesturePipeline::reset() {
     m_leftStateMachine.reset();
     m_rightStateMachine.reset();
+    m_leftDynamicRecognizer.reset();
+    m_rightDynamicRecognizer.reset();
 }

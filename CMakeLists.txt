@@ -83,7 +83,10 @@ if(BUILD_TESTING)
         tests/test_display_transform.cpp
         src/core/actions/PointerMapper.cpp
     )
-    add_core_test(test_dynamic_gestures tests/test_dynamic_gestures.cpp)
+    add_core_test(test_dynamic_gestures
+        tests/test_dynamic_gestures.cpp
+        src/core/gestures/DynamicGestureRecognizer.cpp
+    )
     add_core_test(test_frame_sync tests/test_frame_sync.cpp)
     add_core_test(test_hand_geometry
         tests/test_hand_geometry.cpp
@@ -104,6 +107,7 @@ if(BUILD_TESTING)
         src/core/gestures/HandFeatureExtractor.cpp
         src/core/gestures/GestureEngine.cpp
         src/core/gestures/GestureStateMachine.cpp
+        src/core/gestures/DynamicGestureRecognizer.cpp
         src/core/gestures/GesturePipeline.cpp
     )
     add_core_test(test_pointer_mapper
@@ -117,6 +121,7 @@ if(BUILD_TESTING)
         src/core/config/RuntimeConfig.cpp
         src/core/config/RuntimeConfigController.cpp
         src/core/filters/LandmarkFilterBank.cpp
+        src/platform/NullSystemInputBackend.cpp
     )
     add_core_test(test_runtime_config
         tests/test_runtime_config.cpp

@@ -81,6 +81,10 @@ enum class GestureEventType {
     PINCH_BEGIN,
     PINCH_END,
     PINCH_CANCEL,
+    SWIPE_LEFT,
+    SWIPE_RIGHT,
+    SWIPE_UP,
+    SWIPE_DOWN,
 };
 
 struct GestureEvent {
@@ -95,9 +99,15 @@ template <std::size_t Capacity>
 struct GestureEventBuffer {
     std::array<GestureEvent, Capacity> events{};
     std::size_t count{0};
+    std::size_t droppedCount{0};
 
-    void push(const GestureEvent& event) {
-        if (count < events.size()) events[count++] = event;
+    bool push(const GestureEvent& event) {
+        if (count < events.size()) {
+            events[count++] = event;
+            return true;
+        }
+        ++droppedCount;
+        return false;
     }
 };
 
