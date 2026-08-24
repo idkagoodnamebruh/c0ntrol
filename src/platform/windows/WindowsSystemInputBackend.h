@@ -10,11 +10,13 @@ public:
     bool movePointer(const DesktopPoint& point) override;
     bool primaryButtonDown() override;
     bool primaryButtonUp() override;
+    bool scrollVertical(int notches) override;
     void shutdown() override;
     std::string lastError() const override { return m_lastError; }
 
 private:
-    bool sendMouse(unsigned long flags, long x = 0, long y = 0);
+    bool sendMouse(unsigned long flags, long x = 0, long y = 0,
+                   long mouseData = 0);
 
     DesktopGeometry m_desktop{};
     bool m_initialized{false};

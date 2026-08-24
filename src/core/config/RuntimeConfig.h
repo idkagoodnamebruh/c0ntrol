@@ -4,9 +4,10 @@
 #include "src/core/actions/PointerMapper.h"
 #include "src/core/config/InputConfig.h"
 #include "src/core/filters/LandmarkFilterBank.h"
+#include "src/core/gestures/DynamicGestureConfig.h"
 #include "src/core/gestures/GestureTypes.h"
 
-inline constexpr int kRuntimeConfigVersion = 1;
+inline constexpr int kRuntimeConfigVersion = 2;
 
 struct CameraConfig {
     int index{0};
@@ -24,6 +25,7 @@ struct RuntimeConfig {
     PointerMappingConfig pointer{};
     LandmarkFilterConfig filtering{};
     GestureConfig gestures{};
+    DynamicGestureConfig dynamicGestures{};
     InputConfig input{};
 
     bool operator==(const RuntimeConfig&) const = default;

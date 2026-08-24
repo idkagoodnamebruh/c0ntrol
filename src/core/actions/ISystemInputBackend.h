@@ -14,6 +14,8 @@ public:
     virtual bool movePointer(const DesktopPoint& point) = 0;
     virtual bool primaryButtonDown() = 0;
     virtual bool primaryButtonUp() = 0;
+    // Signed logical wheel notches. Platform adapters own native units.
+    virtual bool scrollVertical(int notches) = 0;
     virtual void shutdown() = 0;
     virtual std::string lastError() const = 0;
 };

@@ -10,6 +10,7 @@ struct RuntimeConfigChanges {
     bool cameraRestartRequired{false};
     bool filteringChanged{false};
     bool gesturesChanged{false};
+    bool dynamicGesturesChanged{false};
     bool pointerChanged{false};
     bool inputChanged{false};
 };
@@ -27,6 +28,11 @@ public:
 
     RuntimeConfigApplyResult apply(const RuntimeConfig& requested);
     RuntimeConfigApplyResult resetToDefaults();
+    bool suspendInput(std::string& error);
+    bool cancelInputSuspension(std::string& error);
+    RuntimeConfigApplyResult completeInputSuspension(
+        const RuntimeConfig& requested, bool resetToDefaults);
+    bool inputSuspended() const { return m_inputSuspended; }
     const RuntimeConfig& current() const { return m_current; }
 
 private:
@@ -35,6 +41,8 @@ private:
 
     RuntimeConfig m_current;
     ActionDispatcher& m_actionDispatcher;
+    bool m_inputSuspended{false};
+    bool m_restoreInputAfterSuspension{false};
 };
 
 #endif // RUNTIMECONFIGCONTROLLER_H

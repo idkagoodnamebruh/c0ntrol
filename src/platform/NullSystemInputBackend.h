@@ -10,6 +10,7 @@ public:
     bool movePointer(const DesktopPoint&) override;
     bool primaryButtonDown() override;
     bool primaryButtonUp() override;
+    bool scrollVertical(int notches) override;
     void shutdown() override;
     std::string lastError() const override { return m_lastError; }
 

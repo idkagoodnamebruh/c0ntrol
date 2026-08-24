@@ -20,4 +20,9 @@ bool NullSystemInputBackend::primaryButtonUp() {
     return false;
 }
 
+bool NullSystemInputBackend::scrollVertical(int) {
+    m_lastError = "native vertical scrolling is unsupported on this platform";
+    return false;
+}
+
 void NullSystemInputBackend::shutdown() {}

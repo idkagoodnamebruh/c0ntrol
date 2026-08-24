@@ -55,15 +55,20 @@ private:
 
     const GestureObservation* selectActiveObservation(
         const GesturePipelineResult& pipelineResult) const;
+    const GestureEvent* selectVerticalSwipe(
+        const GesturePipelineResult& pipelineResult) const;
     static FrameMetadata metadata(const GesturePipelineResult& pipelineResult);
     ActionCommand command(ActionType type, const FrameMetadata& metadata,
-                          Handedness hand, DesktopPoint point = {}) const;
+                          Handedness hand, DesktopPoint point = {},
+                          int scrollNotches = 0) const;
     bool dispatchButtonDown(const ActionCommand& command,
                             ActionDispatchResult& result);
     bool dispatchButtonUp(const ActionCommand& command,
                           ActionDispatchResult& result);
     bool dispatchMove(const ActionCommand& command,
                       ActionDispatchResult& result);
+    bool dispatchScroll(const ActionCommand& command,
+                        ActionDispatchResult& result);
     void fail(ActionDispatchResult& result, const std::string& error);
 
     ISystemInputBackend& m_backend;
