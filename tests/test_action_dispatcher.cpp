@@ -3,6 +3,7 @@
 
 #include "src/core/actions/ActionDispatcher.h"
 #include "src/core/actions/RecordingSystemInputBackend.h"
+#include "src/core/config/RuntimeConfigController.h"
 
 namespace {
 
@@ -10,6 +11,10 @@ void require(bool condition, const char* message) {
     if (condition) return;
     std::cerr << "[FAIL] " << message << '\n';
     std::exit(1);
+}
+
+InputConfig enabledInput(Handedness preferred = Handedness::RIGHT) {
+    return {true, preferred};
 }
 
 GestureObservation observation(std::int64_t timestampUs, Handedness hand,
@@ -53,7 +58,7 @@ GesturePipelineResult eventOnly(std::int64_t timestampUs, Handedness hand,
 
 void testPointerPolicy() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     require(dispatcher.process(frame(observation(0, Handedness::RIGHT, false)))
                 .commandCount == 0,
@@ -68,7 +73,7 @@ void testPointerPolicy() {
 
 void testPinchEdgesAndSuppression() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     dispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -91,7 +96,7 @@ void testPinchEdgesAndSuppression() {
 
 void testCancel() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     dispatcher.process(frameWithEvent(
         observation(100, Handedness::LEFT, true),
@@ -105,7 +110,7 @@ void testCancel() {
 
 void testShutdownAndDisableRelease() {
     RecordingSystemInputBackend shutdownBackend;
-    ActionDispatcher shutdownDispatcher(shutdownBackend);
+    ActionDispatcher shutdownDispatcher(shutdownBackend, {}, enabledInput());
     require(shutdownDispatcher.initialize(), "dispatcher initializes");
     shutdownDispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -116,7 +121,7 @@ void testShutdownAndDisableRelease() {
             "shutdown releases before backend shutdown");
 
     RecordingSystemInputBackend disableBackend;
-    ActionDispatcher disableDispatcher(disableBackend);
+    ActionDispatcher disableDispatcher(disableBackend, {}, enabledInput());
     require(disableDispatcher.initialize(), "dispatcher initializes");
     disableDispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -131,7 +136,7 @@ void testShutdownAndDisableRelease() {
 
 void testActiveHandSwitch() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     dispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -149,7 +154,7 @@ void testActiveHandSwitch() {
 
 void testRightHandPreference() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     GesturePipelineResult both;
     both.observations[both.observationCount++] =
@@ -163,9 +168,25 @@ void testRightHandPreference() {
             "RIGHT is preferred and hands never drive simultaneously");
 }
 
+void testConfiguredLeftHandPreference() {
+    RecordingSystemInputBackend backend;
+    ActionDispatcher dispatcher(backend, {}, enabledInput(Handedness::LEFT));
+    require(dispatcher.initialize(), "dispatcher initializes");
+    GesturePipelineResult both;
+    both.observations[both.observationCount++] =
+        observation(100, Handedness::LEFT, true, 0.1);
+    both.observations[both.observationCount++] =
+        observation(100, Handedness::RIGHT, true, 0.9);
+    dispatcher.process(both);
+    require(dispatcher.activeHand() == Handedness::LEFT &&
+                backend.records.size() == 1 &&
+                backend.records[0].point.x < 500,
+            "persisted LEFT preference selects LEFT without dual control");
+}
+
 void testTimestampReplay() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     dispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -183,7 +204,7 @@ void testTimestampReplay() {
 
 void testDragSemanticOrder() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     dispatcher.process(frame(observation(100, Handedness::RIGHT, true, 0.1)));
     dispatcher.process(frameWithEvent(
@@ -207,7 +228,7 @@ void testDragSemanticOrder() {
 
 void testFailureRecovery() {
     RecordingSystemInputBackend backend;
-    ActionDispatcher dispatcher(backend);
+    ActionDispatcher dispatcher(backend, {}, enabledInput());
     require(dispatcher.initialize(), "dispatcher initializes");
     backend.failNextMove = true;
     const auto result = dispatcher.process(frameWithEvent(
@@ -218,7 +239,7 @@ void testFailureRecovery() {
             "move failure after DOWN attempts one recovery UP");
 
     RecordingSystemInputBackend releaseBackend;
-    ActionDispatcher releaseDispatcher(releaseBackend);
+    ActionDispatcher releaseDispatcher(releaseBackend, {}, enabledInput());
     require(releaseDispatcher.initialize(), "dispatcher initializes");
     releaseDispatcher.process(frameWithEvent(
         observation(100, Handedness::RIGHT, true),
@@ -234,6 +255,49 @@ void testFailureRecovery() {
             "shutdown retries UP once before backend shutdown");
 }
 
+void testSafeDefaultAndRuntimeConfigSafety() {
+    RecordingSystemInputBackend disabledBackend;
+    ActionDispatcher disabled(disabledBackend);
+    require(disabled.initialize() && !disabled.inputEnabled(),
+            "first-run ActionDispatcher is safely disabled");
+    disabled.process(frameWithEvent(
+        observation(100, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+    require(disabledBackend.records.empty(),
+            "disabled input emits no native commands");
+    require(disabled.setInputEnabled(true) && !disabled.buttonDown(),
+            "explicit enable starts from a clean state");
+    disabled.process(frame(observation(200, Handedness::RIGHT, true)));
+    require(disabledBackend.records.size() == 1 &&
+                disabledBackend.records[0].type == RecordedInputType::MOVE,
+            "explicit enable permits input");
+
+    RecordingSystemInputBackend backend;
+    RuntimeConfig initial;
+    initial.input = enabledInput();
+    ActionDispatcher dispatcher(backend, initial.pointer, initial.input);
+    require(dispatcher.initialize(), "configured dispatcher initializes");
+    RuntimeConfigController controller(initial, dispatcher);
+    dispatcher.process(frameWithEvent(
+        observation(100, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+    RuntimeConfig cameraChanged = initial;
+    cameraChanged.camera.index = 2;
+    const auto restart = controller.apply(cameraChanged);
+    require(restart.success && restart.changes.cameraRestartRequired &&
+                backend.buttonUpCount == 1 && !dispatcher.buttonDown(),
+            "camera/config restart releases held button exactly once");
+
+    dispatcher.process(frameWithEvent(
+        observation(200, Handedness::RIGHT, true),
+        GestureEventType::PINCH_BEGIN));
+    const auto reset = controller.resetToDefaults();
+    require(reset.success && backend.buttonUpCount == 2 &&
+                !dispatcher.buttonDown() && !dispatcher.inputEnabled() &&
+                controller.current() == RuntimeConfig{},
+            "settings reset releases once and restores safe defaults");
+}
+
 } // namespace
 
 int main() {
@@ -243,9 +307,11 @@ int main() {
     testShutdownAndDisableRelease();
     testActiveHandSwitch();
     testRightHandPreference();
+    testConfiguredLeftHandPreference();
     testTimestampReplay();
     testDragSemanticOrder();
     testFailureRecovery();
-    std::cout << "[PASS] test_action_dispatcher (12 required cases + recovery)\n";
+    testSafeDefaultAndRuntimeConfigSafety();
+    std::cout << "[PASS] test_action_dispatcher (safe config + recovery)\n";
     return 0;
 }

@@ -14,7 +14,12 @@ struct LandmarkFilterConfig {
     std::int64_t handResetTimeoutUs{400'000};
     double teleportThreshold{0.35};
     bool enabled{true};
+
+    bool operator==(const LandmarkFilterConfig&) const = default;
 };
+
+LandmarkFilterConfig sanitizeLandmarkFilterConfig(
+    LandmarkFilterConfig config);
 
 class LandmarkFilterBank {
 public:
@@ -54,7 +59,6 @@ private:
         bool hasFiniteWrist{false};
     };
 
-    static LandmarkFilterConfig sanitizeConfig(LandmarkFilterConfig config);
     static bool isFinite(const Point3D& point);
 
     HandState& stateFor(Handedness handedness);
