@@ -90,7 +90,7 @@ int main() {
     windowClass.hInstance = GetModuleHandleW(nullptr);
     windowClass.lpszClassName = className;
     windowClass.hCursor =
-        LoadCursorW(nullptr, MAKEINTRESOURCEW(OCR_NORMAL));
+        LoadCursorW(nullptr, MAKEINTRESOURCEW(32512)); // Standard arrow.
     windowClass.hbrBackground =
         reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     if (!RegisterClassW(&windowClass) && GetLastError() !=
