@@ -14,6 +14,7 @@ include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Threads REQUIRED)
 
 set(C0NTROL_HAS_LIBEI OFF)
 if(UNIX AND NOT APPLE)
@@ -80,6 +81,7 @@ if(BUILD_APP)
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+        Threads::Threads
         ${OpenCV_LIBS}
     )
     if(ENABLE_MEDIAPIPE)
@@ -111,8 +113,6 @@ if(WIN32 AND ENABLE_NATIVE_INPUT_SMOKE)
 endif()
 
 if(BUILD_TESTING)
-    find_package(Threads REQUIRED)
-
     function(add_core_test target source)
         add_executable(${target} ${source} ${ARGN})
         target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR})
@@ -186,6 +186,21 @@ if(BUILD_TESTING)
     add_core_test(test_async_capture tests/test_async_capture.cpp)
     target_link_libraries(test_async_capture PRIVATE Threads::Threads)
     add_core_test(test_pipeline_metrics tests/test_pipeline_metrics.cpp)
+    add_core_test(test_native_input_lifecycle
+        tests/test_native_input_lifecycle.cpp
+        src/core/actions/ActionDispatcher.cpp
+        src/core/actions/PointerMapper.cpp
+        src/core/input/NativeInputRuntime.cpp
+        src/platform/NullSystemInputBackend.cpp
+    )
+    target_link_libraries(test_native_input_lifecycle PRIVATE Threads::Threads)
+    add_core_test(test_async_input_runtime
+        tests/test_async_input_runtime.cpp
+        src/core/actions/ActionDispatcher.cpp
+        src/core/actions/PointerMapper.cpp
+        src/core/input/NativeInputRuntime.cpp
+    )
+    target_link_libraries(test_async_input_runtime PRIVATE Threads::Threads)
     add_core_test(test_windows_pointer_math
         tests/test_windows_pointer_math.cpp
         src/platform/windows/WindowsPointerMath.cpp

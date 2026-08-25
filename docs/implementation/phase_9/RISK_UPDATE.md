@@ -6,9 +6,16 @@ Phase 9B removed every downloader conflict marker, all silent critical-error
 suppression and placeholder creation. The canonical model is now checked by
 minimum size and SHA-256; downloads are temporary, validated and atomically
 installed; the offline failure path returns non-zero and leaves no final file.
-The local tooling test passes, and published Linux run `32814406645` repeated
+The local tooling test passes, and final published Linux run `32814790295` repeated
 the same checks before the strict build. There are no tracked zero-byte model
 files. R-007 is **RESOLVED**.
+
+## R-028 — OPEN at the Phase 10 baseline
+
+Native backend initialization is synchronous and a persisted or newly
+requested enable can call it from the GUI thread. The Wayland portal path may
+wait up to 120 seconds. Phase 10 owns the non-blocking lifecycle correction;
+the Phase 9 Linux backend itself remains approved.
 
 ## R-013 — PARTIAL
 

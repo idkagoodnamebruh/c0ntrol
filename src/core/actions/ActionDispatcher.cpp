@@ -256,6 +256,16 @@ bool ActionDispatcher::releaseAll() {
     return true;
 }
 
+bool ActionDispatcher::resetRuntimeState() {
+    if (!releaseAll()) return false;
+    m_activeHand = Handedness::UNKNOWN;
+    m_buttonHand = Handedness::UNKNOWN;
+    m_lastTimestampUs = 0;
+    m_hasTimestamp = false;
+    m_lastError.clear();
+    return true;
+}
+
 bool ActionDispatcher::setInputEnabled(bool enabled) {
     if (enabled == m_inputEnabled) {
         // A prior disable may have failed to release an owned button. Allow a

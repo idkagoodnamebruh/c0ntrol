@@ -1,9 +1,12 @@
 #include "RuntimeConfigController.h"
 
+RuntimeConfigController::RuntimeConfigController(RuntimeConfig initial)
+    : m_current(sanitizeRuntimeConfig(initial)) {}
+
 RuntimeConfigController::RuntimeConfigController(
     RuntimeConfig initial, ActionDispatcher& actionDispatcher)
     : m_current(sanitizeRuntimeConfig(initial)),
-      m_actionDispatcher(actionDispatcher) {}
+      m_actionDispatcher(&actionDispatcher) {}
 
 RuntimeConfigApplyResult RuntimeConfigController::apply(
     const RuntimeConfig& requested) {
@@ -18,18 +21,20 @@ bool RuntimeConfigController::suspendInput(std::string& error) {
     error.clear();
     if (m_inputSuspended) return true;
     m_restoreInputAfterSuspension = m_current.input.enabled;
-    const bool disabled = m_actionDispatcher.setInputEnabled(false);
+    const bool disabled = m_actionDispatcher == nullptr ||
+        m_actionDispatcher->setInputEnabled(false);
     m_inputSuspended = disabled;
-    if (!disabled) error = m_actionDispatcher.lastError();
+    if (!disabled) error = m_actionDispatcher->lastError();
     return disabled;
 }
 
 bool RuntimeConfigController::cancelInputSuspension(std::string& error) {
     error.clear();
     if (!m_inputSuspended) return true;
-    if (!m_actionDispatcher.setInputEnabled(
+    if (m_actionDispatcher != nullptr &&
+        !m_actionDispatcher->setInputEnabled(
             m_restoreInputAfterSuspension)) {
-        error = m_actionDispatcher.lastError();
+        error = m_actionDispatcher->lastError();
         return false;
     }
     m_inputSuspended = false;
@@ -61,16 +66,18 @@ RuntimeConfigApplyResult RuntimeConfigController::applyInternal(
         sanitized.pointer != m_current.pointer;
     result.changes.inputChanged = sanitized.input != m_current.input;
 
-    if ((forceRelease || result.changes.cameraRestartRequired) &&
-        !m_actionDispatcher.releaseAll()) {
+    if (m_actionDispatcher != nullptr &&
+        (forceRelease || result.changes.cameraRestartRequired) &&
+        !m_actionDispatcher->releaseAll()) {
         result.success = false;
-        result.error = m_actionDispatcher.lastError();
+        result.error = m_actionDispatcher->lastError();
         return result;
     }
-    if (!m_actionDispatcher.applyConfiguration(sanitized.pointer,
-                                               sanitized.input)) {
+    if (m_actionDispatcher != nullptr &&
+        !m_actionDispatcher->applyConfiguration(sanitized.pointer,
+                                                sanitized.input)) {
         result.success = false;
-        result.error = m_actionDispatcher.lastError();
+        result.error = m_actionDispatcher->lastError();
         return result;
     }
     m_current = sanitized;
