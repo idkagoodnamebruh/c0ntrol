@@ -4,6 +4,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QStatusBar>
+#include <QTimer>
 #include "src/core/qt/QtMetaTypes.h"
 #include "src/gui/SettingsDialog.h"
 
@@ -16,7 +18,8 @@ MainWindow::MainWindow(RuntimeConfig config,
       m_runtimeConfig(sanitizeRuntimeConfig(config)),
       m_gesturePipeline(m_runtimeConfig.gestures,
                         m_runtimeConfig.dynamicGestures),
-      m_settingsStore(std::move(settingsStore)) {
+      m_settingsStore(std::move(settingsStore)),
+      m_persistedInputEnabled(m_runtimeConfig.input.enabled) {
 
     m_centralWidget = new QWidget(this);
     m_layout = new QVBoxLayout(m_centralWidget);
@@ -27,19 +30,14 @@ MainWindow::MainWindow(RuntimeConfig config,
 
     m_devWidget = new DeveloperModeWidget(this);
 
-    m_inputBackend = createSystemInputBackend();
-    m_actionDispatcher = std::make_unique<ActionDispatcher>(
-        *m_inputBackend, m_runtimeConfig.pointer, m_runtimeConfig.input);
-    if (!m_actionDispatcher->initialize()) {
-        qWarning() << "[NATIVE INPUT]"
-                   << QString::fromStdString(m_actionDispatcher->lastError());
-        // A persisted opt-in may fail because the portal was denied or the
-        // EIS capabilities changed. Reflect the safe runtime state in the UI;
-        // no enabled=true value is written unless a later activation succeeds.
-        m_runtimeConfig.input.enabled = false;
-    }
+    // NativeInputRuntime forces an initially disabled dispatcher and owns both
+    // it and the backend on its dedicated worker. Construction cannot open a
+    // portal or call SendInput.
+    m_nativeInputRuntime = std::make_unique<NativeInputRuntime>(
+        createSystemInputBackend(), m_runtimeConfig.pointer,
+        m_runtimeConfig.input);
     m_configController = std::make_unique<RuntimeConfigController>(
-        m_runtimeConfig, *m_actionDispatcher);
+        m_runtimeConfig);
 
     m_layout->addWidget(m_videoLabel);
     m_layout->addWidget(m_devWidget);
@@ -52,10 +50,25 @@ MainWindow::MainWindow(RuntimeConfig config,
             this, &MainWindow::openSettingsDialog);
 
     setupWorker();
+
+    m_nativeInputStatusTimer = new QTimer(this);
+    m_nativeInputStatusTimer->setInterval(50);
+    connect(m_nativeInputStatusTimer, &QTimer::timeout,
+            this, &MainWindow::refreshNativeInputStatus);
+    m_nativeInputStatusTimer->start();
+    refreshNativeInputStatus();
+
+    // A persisted opt-in is retried only after Qt's event loop can render and
+    // process input. First-run disabled configuration schedules nothing.
+    if (m_runtimeConfig.input.enabled) {
+        QTimer::singleShot(0, this, [this] {
+            requestCurrentNativeInputConfiguration();
+        });
+    }
 }
 
 MainWindow::~MainWindow() {
-    if (m_actionDispatcher) m_actionDispatcher->shutdown();
+    if (m_nativeInputStatusTimer) m_nativeInputStatusTimer->stop();
     if (m_worker) {
         QMetaObject::invokeMethod(m_worker, "stop", Qt::BlockingQueuedConnection);
     }
@@ -63,6 +76,7 @@ MainWindow::~MainWindow() {
         m_thread->quit();
         m_thread->wait();
     }
+    if (m_nativeInputRuntime) m_nativeInputRuntime->shutdown();
 }
 
 void MainWindow::setupWorker() {
@@ -114,14 +128,7 @@ void MainWindow::onPipelineMetricsUpdated(const PipelineMetrics& metrics) {
 void MainWindow::onFilteredTrackingFrameProcessed(
     const HandTrackingFrame& trackingFrame) {
     const GesturePipelineResult result = m_gesturePipeline.process(trackingFrame);
-    if (m_actionDispatcher) {
-        const ActionDispatchResult dispatched =
-            m_actionDispatcher->process(result);
-        if (!dispatched.success) {
-            qWarning() << "[NATIVE INPUT]"
-                       << QString::fromStdString(dispatched.error);
-        }
-    }
+    if (m_nativeInputRuntime) m_nativeInputRuntime->submitLatest(result);
 
     const GestureObservation* selected = selectPreferredObservation(result);
     if (m_activeSettingsDialog != nullptr && selected != nullptr &&
@@ -190,18 +197,22 @@ bool MainWindow::applyRuntimeConfig(const RuntimeConfig& requested,
         }, Qt::BlockingQueuedConnection);
     }
 
-    std::string error;
-    const bool persisted = reset
-        ? m_settingsStore->resetToDefaults(error)
-        : m_settingsStore->save(m_runtimeConfig, error);
-    if (!persisted) {
-        QMessageBox::warning(this, "Settings storage error",
-                             QString::fromStdString(error));
-    }
+    // An opt-in is persisted only after this activation reaches READY. Other
+    // settings are stored immediately with an effective enabled=false value.
+    RuntimeConfig persistedConfig = m_runtimeConfig;
+    if (persistedConfig.input.enabled) persistedConfig.input.enabled = false;
+    const bool persisted = persistConfig(persistedConfig, reset);
+    m_persistedInputEnabled = false;
+    requestCurrentNativeInputConfiguration();
     return persisted;
 }
 
 void MainWindow::openSettingsDialog() {
+    if (m_activeSettingsDialog != nullptr || m_settingsOpenPending) return;
+
+    const NativeInputStatus inputStatus = m_nativeInputRuntime->status();
+    m_restoreInputAfterSettings = m_runtimeConfig.input.enabled &&
+        inputStatus.state != NativeInputState::FAILED;
     std::string suspensionError;
     if (!m_configController->suspendInput(suspensionError)) {
         QMessageBox::warning(this, "Settings unavailable",
@@ -209,6 +220,23 @@ void MainWindow::openSettingsDialog() {
             QString::fromStdString(suspensionError));
         return;
     }
+
+    m_nativeInputRuntime->requestEnabled(false);
+    if (inputStatus.state == NativeInputState::READY ||
+        inputStatus.state == NativeInputState::STOPPING) {
+        // READY may own a button. Wait asynchronously for the worker's release
+        // boundary instead of entering a modal dialog or blocking the GUI.
+        m_settingsOpenPending = true;
+        return;
+    }
+
+    // ACTIVATING cannot own a native button and desired=false immediately
+    // makes frame submission non-dispatching. Its eventual result is stale.
+    showSettingsDialog();
+}
+
+void MainWindow::showSettingsDialog() {
+    m_settingsOpenPending = false;
 
     SettingsDialog dialog(m_runtimeConfig, this);
     m_activeSettingsDialog = &dialog;
@@ -222,6 +250,8 @@ void MainWindow::openSettingsDialog() {
                 qWarning() << "[NATIVE INPUT] restore after failed settings:"
                            << QString::fromStdString(restoreError);
             }
+            if (m_restoreInputAfterSettings)
+                requestCurrentNativeInputConfiguration();
         }
         return;
     }
@@ -231,4 +261,64 @@ void MainWindow::openSettingsDialog() {
         QMessageBox::warning(this, "Input restore failed",
             QString::fromStdString(restoreError));
     }
+    if (m_restoreInputAfterSettings)
+        requestCurrentNativeInputConfiguration();
+}
+
+bool MainWindow::persistConfig(const RuntimeConfig& config, bool reset) {
+    std::string error;
+    const bool persisted = reset
+        ? m_settingsStore->resetToDefaults(error)
+        : m_settingsStore->save(config, error);
+    if (!persisted) {
+        QMessageBox::warning(this, "Settings storage error",
+                             QString::fromStdString(error));
+    }
+    return persisted;
+}
+
+void MainWindow::requestCurrentNativeInputConfiguration() {
+    if (!m_nativeInputRuntime) return;
+    m_nativeInputRuntime->requestConfiguration(m_runtimeConfig.pointer,
+                                               m_runtimeConfig.input);
+}
+
+void MainWindow::refreshNativeInputStatus() {
+    if (!m_nativeInputRuntime) return;
+    const NativeInputStatus inputStatus = m_nativeInputRuntime->status();
+    QString message = "Native input: " + QString::fromLatin1(
+        nativeInputStateName(inputStatus.state));
+    if (inputStatus.state == NativeInputState::ACTIVATING)
+        message = "Native input: Activating…";
+    if (inputStatus.state == NativeInputState::FAILED &&
+        !inputStatus.error.empty()) {
+        message += " — " +
+            QString::fromStdString(inputStatus.error).left(160);
+    }
+    statusBar()->showMessage(message);
+
+    if (inputStatus.state == NativeInputState::READY &&
+        m_runtimeConfig.input.enabled && !m_persistedInputEnabled) {
+        if (persistConfig(m_runtimeConfig, false))
+            m_persistedInputEnabled = true;
+    } else if (inputStatus.state == NativeInputState::FAILED &&
+               m_runtimeConfig.input.enabled) {
+        qWarning() << "[NATIVE INPUT]"
+                   << QString::fromStdString(inputStatus.error);
+        RuntimeConfig safeConfig = m_runtimeConfig;
+        safeConfig.input.enabled = false;
+        const RuntimeConfigApplyResult applied =
+            m_configController->apply(safeConfig);
+        if (applied.success) m_runtimeConfig = m_configController->current();
+        persistConfig(safeConfig, false);
+        m_persistedInputEnabled = false;
+    }
+
+    if (m_settingsOpenPending &&
+        (inputStatus.state == NativeInputState::DISABLED ||
+         inputStatus.state == NativeInputState::FAILED)) {
+        m_settingsOpenPending = false;
+        QTimer::singleShot(0, this, [this] { showSettingsDialog(); });
+    }
+    m_lastNativeInputState = inputStatus.state;
 }

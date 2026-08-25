@@ -31,9 +31,9 @@ headers.
 
 ## Ubuntu 24.04 real-library CI
 
-GitHub Actions run `32814406645` (run number 3), job `97699741996`, validated
-published Phase 9B implementation-and-documentation head
-`578547d72ba5696d1c14dc134bdcae88c36b05d4` on explicit `ubuntu-24.04`:
+GitHub Actions run `32814790295` (run number 4), job `97700800289`, validated
+the final audited Phase 9B head
+`5f18a16af90323a467b0a2a70f8c934c05c80db1` on explicit `ubuntu-24.04`:
 
 - installed `libei-dev` and `liboeffis-dev` version 1.2.1;
 - Bash syntax, conflict-marker, canonical model and controlled downloader
@@ -51,9 +51,9 @@ The compile test only constructs/destroys the backend. CI never calls
 
 ## Windows regression
 
-GitHub Actions run `32814406637` (run number 16), job `97699741925`, validated
-published Phase 9B implementation-and-documentation head
-`578547d72ba5696d1c14dc134bdcae88c36b05d4` and completed
+GitHub Actions run `32814790323` (run number 17), job `97700800085`, validated
+the final audited Phase 9B head
+`5f18a16af90323a467b0a2a70f8c934c05c80db1` and completed
 configure, MSVC build and CTest: **20/20 PASS**. Win32 SendInput behavior was not
 changed and the native smoke executable was not run.
 

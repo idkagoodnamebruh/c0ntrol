@@ -1,4 +1,4 @@
-name: Phase 5 Windows Build
+name: Phase 10 Windows Async Input
 
 on:
   pull_request:
@@ -37,4 +37,13 @@ jobs:
         run: >-
           ctest --test-dir build-windows
           -C Release
+          --output-on-failure
+
+      - name: Repeat critical async lifecycle tests
+        shell: pwsh
+        run: >-
+          ctest --test-dir build-windows
+          -C Release
+          -R "test_(native_input_lifecycle|async_input_runtime)"
+          --repeat until-fail:50
           --output-on-failure

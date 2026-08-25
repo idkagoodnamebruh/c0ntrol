@@ -32,6 +32,7 @@ public:
     bool initialize();
     ActionDispatchResult process(const GesturePipelineResult& pipelineResult);
     bool releaseAll();
+    bool resetRuntimeState();
     bool setInputEnabled(bool enabled);
     bool applyConfiguration(PointerMappingConfig mappingConfig,
                             InputConfig inputConfig);

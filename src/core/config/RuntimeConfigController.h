@@ -23,6 +23,7 @@ struct RuntimeConfigApplyResult {
 
 class RuntimeConfigController {
 public:
+    explicit RuntimeConfigController(RuntimeConfig initial);
     RuntimeConfigController(RuntimeConfig initial,
                             ActionDispatcher& actionDispatcher);
 
@@ -40,7 +41,9 @@ private:
                                            bool forceRelease);
 
     RuntimeConfig m_current;
-    ActionDispatcher& m_actionDispatcher;
+    // Optional compatibility hook for synchronous core-only users. The GUI
+    // uses the pure constructor and sends effects to NativeInputRuntime.
+    ActionDispatcher* m_actionDispatcher{nullptr};
     bool m_inputSuspended{false};
     bool m_restoreInputAfterSuspension{false};
 };

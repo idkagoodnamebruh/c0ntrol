@@ -1,4 +1,4 @@
-name: Phase 9 Linux libei Build
+name: Phase 10 Linux Async Input
 
 on:
   pull_request:
@@ -54,6 +54,39 @@ jobs:
 
       - name: Test without portal or native input
         run: ctest --test-dir build-linux --output-on-failure
+
+      - name: Repeat critical async lifecycle tests
+        run: >-
+          ctest --test-dir build-linux
+          -R "test_(native_input_lifecycle|async_input_runtime)"
+          --repeat until-fail:50
+          --output-on-failure
+
+      - name: Configure ThreadSanitizer async tests
+        continue-on-error: true
+        run: >-
+          cmake -S . -B build-tsan
+          -DBUILD_APP=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_MEDIAPIPE=OFF
+          -DENABLE_LINUX_EIS_INPUT=OFF
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Build ThreadSanitizer async tests
+        continue-on-error: true
+        run: >-
+          cmake --build build-tsan --parallel 2
+          --target test_native_input_lifecycle test_async_input_runtime
+
+      - name: Run ThreadSanitizer async tests
+        continue-on-error: true
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: >-
+          ctest --test-dir build-tsan
+          -R "test_(native_input_lifecycle|async_input_runtime)"
+          --output-on-failure
 
       - name: Configure Linux desktop
         run: >-
