@@ -31,20 +31,18 @@ headers.
 
 ## Ubuntu 24.04 real-library CI
 
-Fresh Phase 9B workflow evidence is pending publication. The run below is
-retained explicitly as pre-9B backend evidence and must not be interpreted as
-validating the Phase 9B tooling commit.
-
-GitHub Actions run `32792725170` (run number 1), job `97637451558`, validated
-implementation head `fefc340285b51e94b16fbb81fb5cc5af83c92d28` on explicit
-`ubuntu-24.04`:
+GitHub Actions run `32814406645` (run number 3), job `97699741996`, validated
+published Phase 9B implementation-and-documentation head
+`578547d72ba5696d1c14dc134bdcae88c36b05d4` on explicit `ubuntu-24.04`:
 
 - installed `libei-dev` and `liboeffis-dev` version 1.2.1;
+- Bash syntax, conflict-marker, canonical model and controlled downloader
+  failure-path checks: **PASS**;
 - strict CMake configure with both enable/require options: **PASS**;
 - production `LibeiPortalSession.cpp` compile/link: **PASS**;
 - factory selected `LinuxEisSystemInputBackend`: **PASS**;
-- CTest step, 22 registered targets (previous 19 plus three Linux targets):
-  **22/22 PASS**;
+- CTest step, 23 registered targets (previous 19, three Phase 9 Linux targets
+  and the Phase 9B tooling target): **23/23 PASS**;
 - Qt6/OpenCV desktop configure and complete link with the real libraries:
   **PASS**.
 
@@ -53,11 +51,9 @@ The compile test only constructs/destroys the backend. CI never calls
 
 ## Windows regression
 
-Fresh Phase 9B workflow evidence is pending publication. The run below is
-retained explicitly as pre-9B backend evidence and must not be interpreted as
-validating the Phase 9B tooling commit.
-
-GitHub Actions run `32792725125` (run number 14), job `97637451423`, completed
+GitHub Actions run `32814406637` (run number 16), job `97699741925`, validated
+published Phase 9B implementation-and-documentation head
+`578547d72ba5696d1c14dc134bdcae88c36b05d4` and completed
 configure, MSVC build and CTest: **20/20 PASS**. Win32 SendInput behavior was not
 changed and the native smoke executable was not run.
 

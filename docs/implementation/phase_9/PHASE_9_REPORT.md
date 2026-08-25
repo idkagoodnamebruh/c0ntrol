@@ -42,10 +42,10 @@ Phase 9B additionally delivers:
 
 - local dependency-free Linux after Phase 9B: **22/22 PASS**;
 - critical repetitions: **80/80 PASS**;
-- Ubuntu 24.04 real libei/liboeffis 1.2.1 before Phase 9B: **22/22 PASS**;
+- Ubuntu 24.04 Phase 9B with real libei/liboeffis 1.2.1: **23/23 PASS**;
 - production Linux backend compile/link and factory selection: **PASS**;
 - Linux desktop linked against real libraries: **PASS**;
-- Windows regression before Phase 9B: **20/20 PASS**;
+- Windows Phase 9B regression: **20/20 PASS**;
 - physical Wayland portal smoke: **NOT RUN**.
 
 No test or workflow opens the portal or emits real input. Physical validation
@@ -53,6 +53,5 @@ remains explicit in R-013 rather than being represented as complete evidence.
 No root, uinput, XTest, X11 or keyboard permission is used. Phase 10 has not
 started.
 
-Fresh Linux and Windows workflow evidence for the published Phase 9B head is
-recorded in `TEST_REPORT.md`; older run IDs are explicitly retained only as
-pre-9B evidence until those new runs complete.
+Fresh Linux and Windows workflow evidence for the published Phase 9B
+implementation head is recorded in `TEST_REPORT.md`.

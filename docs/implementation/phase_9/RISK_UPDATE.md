@@ -1,13 +1,14 @@
 # Phase 9 risk update
 
-## R-007 — PENDING FINAL CI
+## R-007 — RESOLVED
 
 Phase 9B removed every downloader conflict marker, all silent critical-error
 suppression and placeholder creation. The canonical model is now checked by
 minimum size and SHA-256; downloads are temporary, validated and atomically
 installed; the offline failure path returns non-zero and leaves no final file.
-The local tooling test passes. R-007 becomes **RESOLVED** when the same checks
-pass on the published Linux CI head.
+The local tooling test passes, and published Linux run `32814406645` repeated
+the same checks before the strict build. There are no tracked zero-byte model
+files. R-007 is **RESOLVED**.
 
 ## R-013 — PARTIAL
 
