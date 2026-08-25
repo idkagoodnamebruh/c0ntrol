@@ -1,74 +1,92 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-MODELS_DIR="$ROOT_DIR/models"
+MODELS_DIR="${C0NTROL_MODELS_DIR:-$ROOT_DIR/models}"
+MODEL_NAME="hand_landmarker.task"
+MODEL_PATH="$MODELS_DIR/$MODEL_NAME"
+MODEL_URL="${C0NTROL_HAND_LANDMARKER_URL:-https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task}"
+EXPECTED_SHA256="fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+MIN_MODEL_BYTES=1048576
 
-mkdir -p "$MODELS_DIR"
+file_size() {
+    wc -c < "$1" | tr -d '[:space:]'
+}
 
-echo "=== Descargador de Modelos de Rastreo de Manos (MediaPipe / ONNX / TFLite) ==="
-echo "Directorio destino: $MODELS_DIR"
-
-download_if_missing() {
-    local file="$1"
-    local url="$2"
-
-    if [ -f "$file" ] && [ -s "$file" ]; then
-        echo "[INFO] El modelo $(basename "$file") ya existe en disco."
+file_sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
     else
-        echo "[INFO] Descargando $(basename "$file")..."
-        if command -v curl >/dev/null 2>&1; then
-            curl -L --connect-timeout 15 -o "$file" "$url" || true
-        elif command -v wget >/dev/null 2>&1; then
-            wget -O "$file" "$url" || true
-        fi
-
-        if [ -f "$file" ] && [ -s "$file" ]; then
-            echo "[EXITO] $(basename "$file") guardado exitosamente."
-        else
-            echo "[WARN] No se pudo descargar $(basename "$file"). Creando placeholder."
-            touch "$file"
-        fi
+        echo "[ERROR] sha256sum or shasum is required to validate $MODEL_NAME." >&2
+        return 1
     fi
 }
-<<<<<<< HEAD
 
-# 1. Hand Landmarker Task
-download_if_missing "$MODELS_DIR/hand_landmarker.task" \
-    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+validate_model() {
+    local candidate="$1"
+    local size
+    local actual_sha256
 
-# 2. Hand Detector TFLite
-download_if_missing "$MODELS_DIR/hand_detector.tflite" \
-    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_detector.tflite"
+    if [ ! -f "$candidate" ]; then
+        echo "[ERROR] Model is not a regular file: $candidate" >&2
+        return 1
+    fi
 
-# 3. Hand Landmarks Detector TFLite
-download_if_missing "$MODELS_DIR/hand_landmarks_detector.tflite" \
-    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_landmark_full.tflite"
+    size="$(file_size "$candidate")"
+    if [ "$size" -lt "$MIN_MODEL_BYTES" ]; then
+        echo "[ERROR] Model is too small ($size bytes; minimum $MIN_MODEL_BYTES): $candidate" >&2
+        return 1
+    fi
 
-# 4. Hand Landmark ONNX
-download_if_missing "$MODELS_DIR/hand_landmark.onnx" \
-    "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/hand_landmark/model/hand_landmark.onnx"
+    actual_sha256="$(file_sha256 "$candidate")"
+    if [ "$actual_sha256" != "$EXPECTED_SHA256" ]; then
+        echo "[ERROR] SHA-256 mismatch for $candidate" >&2
+        echo "[ERROR] Expected: $EXPECTED_SHA256" >&2
+        echo "[ERROR] Actual:   $actual_sha256" >&2
+        return 1
+    fi
+}
 
-echo "=== Proceso de modelos completado ==="
+if validate_model "$MODEL_PATH" 2>/dev/null; then
+    echo "[INFO] $MODEL_NAME is already present and valid."
+    exit 0
+fi
 
-=======
+mkdir -p "$MODELS_DIR"
+temporary_file="$(mktemp "$MODELS_DIR/.${MODEL_NAME}.tmp.XXXXXX")"
 
-# 1. Hand Landmarker Task
-download_if_missing "$MODELS_DIR/hand_landmarker.task" \
-    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+cleanup() {
+    if [ -n "${temporary_file:-}" ]; then
+        rm -f -- "$temporary_file"
+    fi
+}
+trap cleanup EXIT HUP INT TERM
 
-# 2. Hand Detector TFLite
-download_if_missing "$MODELS_DIR/hand_detector.tflite" \
-    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_detector.tflite"
+echo "[INFO] Downloading $MODEL_NAME from the official MediaPipe model source."
+if command -v curl >/dev/null 2>&1; then
+    if ! curl --fail --location --show-error \
+        --retry 3 --retry-delay 1 --connect-timeout 15 \
+        --output "$temporary_file" "$MODEL_URL"; then
+        echo "[ERROR] Download failed; the existing model was not changed." >&2
+        exit 1
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if ! wget --tries=3 --timeout=15 \
+        --output-document="$temporary_file" "$MODEL_URL"; then
+        echo "[ERROR] Download failed; the existing model was not changed." >&2
+        exit 1
+    fi
+else
+    echo "[ERROR] Neither curl nor wget is available." >&2
+    exit 1
+fi
 
-# 3. Hand Landmarks Detector TFLite
-download_if_missing "$MODELS_DIR/hand_landmarks_detector.tflite" \
-    "https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/hand_landmark/hand_landmark_full.tflite"
+validate_model "$temporary_file"
+mv -f -- "$temporary_file" "$MODEL_PATH"
+temporary_file=""
+trap - EXIT HUP INT TERM
 
-# 4. Hand Landmark ONNX
-download_if_missing "$MODELS_DIR/hand_landmark.onnx" \
-    "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/hand_landmark/model/hand_landmark.onnx"
-
-echo "=== Proceso de modelos completado ==="
->>>>>>> 2c1e8ff3a1ab1c4b544bd35f532e84d94ab23bd3
+echo "[SUCCESS] $MODEL_NAME installed atomically at $MODEL_PATH."
