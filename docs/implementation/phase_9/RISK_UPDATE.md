@@ -1,5 +1,14 @@
 # Phase 9 risk update
 
+## R-007 — PENDING FINAL CI
+
+Phase 9B removed every downloader conflict marker, all silent critical-error
+suppression and placeholder creation. The canonical model is now checked by
+minimum size and SHA-256; downloads are temporary, validated and atomically
+installed; the offline failure path returns non-zero and leaves no final file.
+The local tooling test passes. R-007 becomes **RESOLVED** when the same checks
+pass on the published Linux CI head.
+
 ## R-013 — PARTIAL
 
 Windows native input remains compiled and regression-tested. Linux
@@ -12,6 +21,8 @@ implemented.
 
 ## Other tracked risks
 
+- R-006: **RESOLVED**. The canonical task bundle remains the exact model proven
+  by real MediaPipe creation and inference in Phase 2.
 - R-014: **RESOLVED**. The timestamped dynamic recognizer remains in place; the
   inherited pose-flicker test now proves OPEN_HAND gating cannot cancel an
   active cooldown.
@@ -22,6 +33,9 @@ implemented.
   failed portal activation cannot be committed as enabled runtime state.
 - R-025: **PARTIAL**. Portal/EIS disconnect and device pause/remove are tested,
   but physical camera/session reconnect and shutdown remain unvalidated.
+- R-026: **OPEN**. Minimalist and Matrix widget sources remain compiled but are
+  not instantiated or advertised as active runtime modes.
+- R-027: **OPEN**. Packaging and installation remain future work.
 
 MediaPipe, OneEuro and LandmarkFilterBank mathematics, static GestureEngine,
 pinch FSM, dynamic thresholds, AsyncCapture and PointerMapper mathematics were

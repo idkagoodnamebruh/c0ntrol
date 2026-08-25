@@ -1,64 +1,53 @@
-# Documento de Cierre: Hand Tracking C++ Qt6 (`c0ntrol`)
+# Hand tracking implementation status
 
-## Resumen del Progreso
+The current hand-tracking architecture is complete through Phase 9B. This
+document replaces the obsolete early closure claim that described five tests,
+loose ONNX/TFLite assets and legacy gesture classes.
 
-Se ha completado la migración y refinamiento de la arquitectura de la aplicación de control por gestos **c0ntrol** de Python a **C++20 nativo con Qt6 y OpenCV**.
+## Runtime architecture
 
----
-
-## Arquitectura Implementada
-
-```
-Stark45/
-├── CMakeLists.txt              # Configuración de CMake (Qt6 Core/Gui/Widgets, OpenCV)
-├── Makefile                    # Wrapper para compilación rápida y ejecución de pruebas
-├── models/                     # Archivos de modelo MediaPipe (TFLite / Task / ONNX)
-│   ├── hand_detector.tflite
-│   ├── hand_landmarker.task
-│   ├── hand_landmark.onnx
-│   └── hand_landmarks_detector.tflite
-├── scripts/
-│   └── download_hand_model.sh  # Script de descarga y verificación de modelos
-├── docs/
-│   ├── HAND_TRACKING_AUDIT.md  # Auditoría inicial y matriz de equivalencias
-│   └── HAND_TRACKING_FINAL.md  # Documento final de arquitectura y estado
-├── src/
-│   ├── main.cpp                # Punto de entrada de la aplicación Qt
-│   ├── core/
-│   │   ├── actions/            # Movimiento de cursor y simulación de clics
-│   │   ├── config/             # Parámetros de configuración globales
-│   │   ├── filters/            # One Euro Filter (suavizado de temblor)
-│   │   ├── gestures/           # Clasificación de gestos y heurísticas geométricas
-│   │   └── vision/             # Captura OpenCV, transformaciones y sincronización
-│   └── gui/                    # Ventanas MainWindow, DeveloperMode, MinimalistMode, MatrixRain
-└── tests/                      # Suite de pruebas unitarias (5 suites passing)
+```text
+AsyncCapture
+  -> MediaPipeHandTrackingBackend or MockHandTrackingBackend
+  -> LandmarkFilterBank
+  -> HandFeatureExtractor
+  -> GestureEngine
+  -> GestureStateMachine
+  -> DynamicGestureRecognizer
+  -> ActionDispatcher
+  -> Windows SendInput / Linux Wayland EIS / Null backend
 ```
 
----
+The static poses implemented by the modern engine are `POINTING`, `PINCH` and
+`OPEN_HAND`. The timestamped dynamic recognizer emits one-shot swipe events in
+four directions; vertical events can dispatch configurable scrolling.
 
-## Suite de Pruebas Unitarias
+## Model contract
 
-Se cuenta con **5 ejecutables de prueba** validados correctamente:
+`models/hand_landmarker.task` is the only required inference asset. The model
+download script uses an official versioned MediaPipe URL, validates size and
+SHA-256, and installs atomically. It never converts a download error into an
+empty placeholder. Exact source, identity and consumer evidence are recorded
+in `docs/implementation/phase_9/MODEL_ASSET_AUDIT.md`.
 
-1. **`test_one_euro`**: Valida que la respuesta del filtro suavice pequeños temblores espaciales y reaccione a movimientos veloces.
-2. **`test_hand_geometry`**: Valida el cálculo de distancias euclidianas 3D y la clasificación de gestos (`POINTING`, `PINCH`, `PALM_OPEN`, `FIST`, `VICTORY`).
-3. **`test_display_transform`**: Valida el mapeo de coordenadas $(x, y) \in [0, 1]$ a la resolución objetivo del monitor.
-4. **`test_frame_sync`**: Valida que los frames de cámara y los conjuntos de landmarks no sufran desincronizaciones de tiempo.
-5. **`test_dynamic_gestures`**: Valida el registro de trayectorias en ventana temporal para reconocer deslices (*Swipes*).
+## Build truth
 
----
+The ordinary build leaves `ENABLE_MEDIAPIPE=OFF` and therefore uses the mock
+backend. Real inference requires both `ENABLE_MEDIAPIPE=ON` and the bridge
+library built from the project-pinned MediaPipe v0.10.26 source. Linux native
+input additionally requires libei/liboeffis 1.2.1 or newer; otherwise the Null
+backend is selected unless strict dependency mode was requested.
 
-## Verificación de Compilación y Ejecución
+## Validation boundaries
 
-Para compilar y ejecutar el proyecto localmente en Linux con Qt6 y OpenCV instalado:
+Automated tests cover tracking contracts, filtering, gesture geometry/FSM,
+dynamic recognition, pointer/action mapping, configuration, asynchronous
+capture, platform adapters and model tooling. Real static-image MediaPipe
+inference passed in Phase 2. Windows and Linux platform builds are exercised in
+GitHub Actions, but physical camera, SendInput and Wayland portal validation
+remain explicitly tracked as partial risks. Automated jobs do not emit native
+input.
 
-```bash
-# Compilar proyecto principal
-make
-
-# Ejecutar aplicación
-make run
-
-# Compilar y ejecutar pruebas unitarias
-make test
-```
+The live GUI currently instantiates camera output, the developer telemetry
+widget and Settings. Minimalist and Matrix widget sources remain disconnected;
+they are not active product modes.
