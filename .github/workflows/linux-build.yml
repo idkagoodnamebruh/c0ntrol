@@ -33,6 +33,13 @@ jobs:
           pkg-config --modversion libei-1.0
           pkg-config --modversion liboeffis-1.0
 
+      - name: Validate repository and model tooling
+        run: |
+          bash -n scripts/download_hand_model.sh
+          bash scripts/check_repository_hygiene.sh
+          bash scripts/check_model_assets.sh
+          bash tests/tooling/test_model_tooling.sh
+
       - name: Configure strict headless tests
         run: >-
           cmake -S . -B build-linux

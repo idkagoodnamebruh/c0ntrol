@@ -191,6 +191,9 @@ if(BUILD_TESTING)
         src/platform/windows/WindowsPointerMath.cpp
     )
     if(UNIX AND NOT APPLE)
+        add_test(NAME test_model_tooling
+                 COMMAND bash
+                         "${CMAKE_SOURCE_DIR}/tests/tooling/test_model_tooling.sh")
         add_core_test(test_eis_regions
             tests/test_eis_regions.cpp
             src/platform/linux/EisRegion.cpp
