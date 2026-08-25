@@ -320,5 +320,4 @@ void MainWindow::refreshNativeInputStatus() {
         m_settingsOpenPending = false;
         QTimer::singleShot(0, this, [this] { showSettingsDialog(); });
     }
-    m_lastNativeInputState = inputStatus.state;
 }

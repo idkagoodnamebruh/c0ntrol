@@ -56,7 +56,6 @@ private:
     std::unique_ptr<ISettingsStore> m_settingsStore;
     QTimer* m_nativeInputStatusTimer{nullptr};
     SettingsDialog* m_activeSettingsDialog{nullptr};
-    NativeInputState m_lastNativeInputState{NativeInputState::DISABLED};
     bool m_persistedInputEnabled{false};
     bool m_settingsOpenPending{false};
     bool m_restoreInputAfterSettings{false};
