@@ -129,6 +129,16 @@ void testPoseGateAndCooldown() {
                 !update(recognizer, 0.78, 0.50, 200'000) &&
                 !update(recognizer, 0.85, 0.50, 250'000),
             "continued movement is suppressed during cooldown");
+
+    // A one-frame static-pose flicker clears motion history but must not
+    // cancel the cooldown established by the physical swipe.
+    require(!update(recognizer, 0.50, 0.50, 275'000, 0.1,
+                    StaticGesture::POINTING),
+            "non-open pose flicker emits no dynamic event");
+    require(!update(recognizer, 0.50, 0.50, 300'000) &&
+                !update(recognizer, 0.57, 0.50, 340'000) &&
+                !update(recognizer, 0.64, 0.50, 380'000),
+            "pose flicker cannot bypass the original cooldown");
     update(recognizer, 0.50, 0.50, 410'000);
     update(recognizer, 0.57, 0.50, 460'000);
     require(update(recognizer, 0.64, 0.50, 510'000).has_value(),

@@ -5,11 +5,41 @@ option(BUILD_APP "Build c0ntrol desktop application" ON)
 option(ENABLE_MEDIAPIPE "Build the MediaPipe Hand Landmarker backend" OFF)
 option(ENABLE_NATIVE_INPUT_SMOKE
        "Build the manual opt-in Windows native input smoke tool" OFF)
+option(ENABLE_LINUX_EIS_INPUT
+       "Enable Linux Wayland input through libei/EIS" ON)
+option(REQUIRE_LINUX_EIS_INPUT
+       "Fail configuration when the Linux libei/EIS backend is unavailable" OFF)
 set(MEDIAPIPE_BRIDGE_LIBRARY "" CACHE FILEPATH "Pinned c0ntrol MediaPipe bridge shared library")
 include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(C0NTROL_HAS_LIBEI OFF)
+if(UNIX AND NOT APPLE)
+    if(REQUIRE_LINUX_EIS_INPUT AND NOT ENABLE_LINUX_EIS_INPUT)
+        message(FATAL_ERROR
+            "REQUIRE_LINUX_EIS_INPUT requires ENABLE_LINUX_EIS_INPUT=ON")
+    endif()
+    if(ENABLE_LINUX_EIS_INPUT)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(LIBEI QUIET IMPORTED_TARGET "libei-1.0>=1.2.1")
+            pkg_check_modules(LIBOEFFIS QUIET IMPORTED_TARGET "liboeffis-1.0>=1.2.1")
+        endif()
+        if(LIBEI_FOUND AND LIBOEFFIS_FOUND)
+            set(C0NTROL_HAS_LIBEI ON)
+            message(STATUS
+                "Linux EIS input enabled: libei ${LIBEI_VERSION}, liboeffis ${LIBOEFFIS_VERSION}")
+        elseif(REQUIRE_LINUX_EIS_INPUT)
+            message(FATAL_ERROR
+                "Linux EIS input requires pkg-config modules libei-1.0>=1.2.1 and liboeffis-1.0>=1.2.1")
+        else()
+            message(WARNING
+                "libei/liboeffis development files unavailable; using NullSystemInputBackend")
+        endif()
+    endif()
+endif()
 
 if(ENABLE_MEDIAPIPE)
     if(NOT MEDIAPIPE_BRIDGE_LIBRARY)
@@ -40,6 +70,9 @@ if(BUILD_APP)
         list(FILTER SOURCES EXCLUDE REGEX
              "WindowsSystemInputBackend\\.cpp$")
     endif()
+    if(NOT C0NTROL_HAS_LIBEI)
+        list(FILTER SOURCES EXCLUDE REGEX "/platform/linux/.*\\.cpp$")
+    endif()
 
     add_executable(c0ntrol ${SOURCES} ${HEADERS})
     target_include_directories(c0ntrol PRIVATE ${CMAKE_SOURCE_DIR})
@@ -55,6 +88,13 @@ if(BUILD_APP)
     endif()
     if(WIN32)
         target_link_libraries(c0ntrol PRIVATE user32)
+    endif()
+    if(C0NTROL_HAS_LIBEI)
+        target_compile_definitions(c0ntrol PRIVATE C0NTROL_HAS_LIBEI=1)
+        target_link_libraries(c0ntrol PRIVATE
+            PkgConfig::LIBEI
+            PkgConfig::LIBOEFFIS
+        )
     endif()
 endif()
 
@@ -150,6 +190,41 @@ if(BUILD_TESTING)
         tests/test_windows_pointer_math.cpp
         src/platform/windows/WindowsPointerMath.cpp
     )
+    if(UNIX AND NOT APPLE)
+        add_test(NAME test_model_tooling
+                 COMMAND bash
+                         "${CMAKE_SOURCE_DIR}/tests/tooling/test_model_tooling.sh")
+        add_core_test(test_eis_regions
+            tests/test_eis_regions.cpp
+            src/platform/linux/EisRegion.cpp
+        )
+        add_core_test(test_linux_eis_backend
+            tests/test_linux_eis_backend.cpp
+            src/platform/linux/EisRegion.cpp
+            src/platform/linux/LinuxEisSystemInputBackend.cpp
+        )
+        if(C0NTROL_HAS_LIBEI)
+            add_executable(test_linux_eis_backend_compile
+                tests/test_linux_eis_backend_compile.cpp
+                src/platform/linux/EisRegion.cpp
+                src/platform/linux/LinuxEisSystemInputBackend.cpp
+                src/platform/linux/LibeiPortalSession.cpp
+                src/platform/SystemInputBackendFactory.cpp
+            )
+            target_include_directories(test_linux_eis_backend_compile
+                PRIVATE ${CMAKE_SOURCE_DIR}
+            )
+            target_link_libraries(test_linux_eis_backend_compile PRIVATE
+                PkgConfig::LIBEI
+                PkgConfig::LIBOEFFIS
+            )
+            target_compile_definitions(test_linux_eis_backend_compile PRIVATE
+                C0NTROL_HAS_LIBEI=1
+            )
+            add_test(NAME test_linux_eis_backend_compile
+                     COMMAND test_linux_eis_backend_compile)
+        endif()
+    endif()
     if(WIN32)
         add_executable(test_windows_input_backend_compile
             tests/test_windows_input_backend_compile.cpp

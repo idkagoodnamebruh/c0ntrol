@@ -1,0 +1,68 @@
+name: Phase 9 Linux libei Build
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-libei-build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain and native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            pkg-config \
+            libei-dev \
+            liboeffis-dev \
+            qt6-base-dev \
+            libopencv-dev
+
+      - name: Native dependency versions
+        run: |
+          cmake --version
+          pkg-config --modversion libei-1.0
+          pkg-config --modversion liboeffis-1.0
+
+      - name: Validate repository and model tooling
+        run: |
+          bash -n scripts/download_hand_model.sh
+          bash scripts/check_repository_hygiene.sh
+          bash scripts/check_model_assets.sh
+          bash tests/tooling/test_model_tooling.sh
+
+      - name: Configure strict headless tests
+        run: >-
+          cmake -S . -B build-linux
+          -DBUILD_APP=OFF
+          -DBUILD_TESTING=ON
+          -DENABLE_MEDIAPIPE=OFF
+          -DENABLE_LINUX_EIS_INPUT=ON
+          -DREQUIRE_LINUX_EIS_INPUT=ON
+
+      - name: Build strict headless tests
+        run: cmake --build build-linux --parallel 2
+
+      - name: Test without portal or native input
+        run: ctest --test-dir build-linux --output-on-failure
+
+      - name: Configure Linux desktop
+        run: >-
+          cmake -S . -B build-linux-desktop
+          -DBUILD_APP=ON
+          -DBUILD_TESTING=OFF
+          -DENABLE_MEDIAPIPE=OFF
+          -DENABLE_LINUX_EIS_INPUT=ON
+          -DREQUIRE_LINUX_EIS_INPUT=ON
+
+      - name: Build Linux desktop
+        run: cmake --build build-linux-desktop --parallel 2

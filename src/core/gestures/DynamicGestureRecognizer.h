@@ -34,6 +34,7 @@ private:
     bool validSample(const HandFeatures& features, StaticGesture pose,
                      std::int64_t timestampUs) const;
     void seed(const HandFeatures& features, std::int64_t timestampUs);
+    void clearHistory();
     double referenceHandScale() const;
 
     Handedness m_handedness;

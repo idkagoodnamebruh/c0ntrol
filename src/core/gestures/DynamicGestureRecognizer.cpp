@@ -36,6 +36,12 @@ void DynamicGestureRecognizer::seed(
     m_hasTimestamp = true;
 }
 
+void DynamicGestureRecognizer::clearHistory() {
+    m_samples.clear();
+    m_lastTimestampUs = 0;
+    m_hasTimestamp = false;
+}
+
 double DynamicGestureRecognizer::referenceHandScale() const {
     std::vector<double> scales;
     scales.reserve(m_samples.size());
@@ -52,6 +58,16 @@ std::optional<GestureEvent> DynamicGestureRecognizer::update(
     const HandFeatures& features, StaticGesture pose,
     std::uint64_t frameId, std::int64_t timestampUs) {
     if (!validSample(features, pose, timestampUs)) {
+        if (m_config.enabled && timestampUs >= 0 && features.valid &&
+            features.handedness == m_handedness &&
+            pose != StaticGesture::OPEN_HAND &&
+            finitePoint(features.palmCenter) &&
+            std::isfinite(features.handScale) && features.handScale > 0.0) {
+            clearHistory();
+            m_lastTimestampUs = timestampUs;
+            m_hasTimestamp = true;
+            return std::nullopt;
+        }
         reset();
         return std::nullopt;
     }
@@ -150,8 +166,6 @@ std::optional<GestureEvent> DynamicGestureRecognizer::update(
 }
 
 void DynamicGestureRecognizer::reset() {
-    m_samples.clear();
-    m_lastTimestampUs = 0;
+    clearHistory();
     m_cooldownUntilUs = 0;
-    m_hasTimestamp = false;
 }

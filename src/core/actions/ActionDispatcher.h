@@ -69,6 +69,7 @@ private:
                       ActionDispatchResult& result);
     bool dispatchScroll(const ActionCommand& command,
                         ActionDispatchResult& result);
+    bool ensureBackendInitialized();
     void fail(ActionDispatchResult& result, const std::string& error);
 
     ISystemInputBackend& m_backend;
@@ -79,6 +80,7 @@ private:
     Handedness m_buttonHand{Handedness::UNKNOWN};
     std::int64_t m_lastTimestampUs{0};
     bool m_initialized{false};
+    bool m_backendInitialized{false};
     bool m_inputEnabled{false};
     bool m_buttonDown{false};
     bool m_hasTimestamp{false};
