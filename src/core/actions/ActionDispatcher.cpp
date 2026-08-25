@@ -5,8 +5,7 @@ ActionDispatcher::ActionDispatcher(ISystemInputBackend& backend,
                                    InputConfig inputConfig)
     : m_backend(backend),
       m_pointerMapper(mappingConfig),
-      m_inputConfig(sanitizeInputConfig(inputConfig)),
-      m_inputEnabled(m_inputConfig.enabled) {}
+      m_inputConfig(sanitizeInputConfig(inputConfig)) {}
 
 ActionDispatcher::~ActionDispatcher() {
     shutdown();
@@ -14,6 +13,22 @@ ActionDispatcher::~ActionDispatcher() {
 
 bool ActionDispatcher::initialize() {
     if (m_initialized) return true;
+    m_initialized = true;
+    m_lastError.clear();
+    if (!m_inputConfig.enabled) {
+        m_inputEnabled = false;
+        return true;
+    }
+    if (!ensureBackendInitialized()) {
+        m_inputConfig.enabled = false;
+        return false;
+    }
+    m_inputEnabled = true;
+    return true;
+}
+
+bool ActionDispatcher::ensureBackendInitialized() {
+    if (m_backendInitialized) return true;
     if (!m_backend.initialize()) {
         m_lastError = m_backend.lastError();
         m_inputEnabled = false;
@@ -26,8 +41,7 @@ bool ActionDispatcher::initialize() {
         m_inputEnabled = false;
         return false;
     }
-    m_initialized = true;
-    m_inputEnabled = m_inputConfig.enabled;
+    m_backendInitialized = true;
     m_lastError.clear();
     return true;
 }
@@ -257,7 +271,15 @@ bool ActionDispatcher::setInputEnabled(bool enabled) {
         return released;
     }
 
-    if (!m_initialized || !releaseAll()) return false;
+    if (!m_initialized) {
+        m_lastError = "action dispatcher is not initialized";
+        return false;
+    }
+    if (!releaseAll() || !ensureBackendInitialized()) {
+        m_inputEnabled = false;
+        m_inputConfig.enabled = false;
+        return false;
+    }
     m_activeHand = Handedness::UNKNOWN;
     m_hasTimestamp = false;
     m_inputEnabled = true;
@@ -275,8 +297,10 @@ bool ActionDispatcher::applyConfiguration(
     }
 
     if (!releaseAll()) return false;
-    if (inputConfig.enabled && !m_initialized) {
-        m_lastError = "cannot enable an uninitialized input backend";
+    if (inputConfig.enabled &&
+        (!m_initialized || !ensureBackendInitialized())) {
+        m_inputEnabled = false;
+        m_inputConfig.enabled = false;
         return false;
     }
     m_pointerMapper = PointerMapper(mappingConfig);
@@ -291,8 +315,9 @@ bool ActionDispatcher::applyConfiguration(
 void ActionDispatcher::shutdown() {
     if (!m_initialized) return;
     releaseAll();
-    m_backend.shutdown();
+    if (m_backendInitialized) m_backend.shutdown();
     m_initialized = false;
+    m_backendInitialized = false;
     m_inputEnabled = false;
     m_activeHand = Handedness::UNKNOWN;
 }

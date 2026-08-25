@@ -470,6 +470,49 @@ void testUnsupportedScrollIsExplicit() {
             "unsupported backend reports scroll failure explicitly");
 }
 
+void testLazyBackendActivationAndRetry() {
+    RecordingSystemInputBackend disabledBackend;
+    ActionDispatcher disabled(disabledBackend);
+    require(disabled.initialize() && disabledBackend.initializeCount == 0 &&
+                !disabled.inputEnabled(),
+            "disabled startup does not initialize an interactive backend");
+    require(disabled.setInputEnabled(true) &&
+                disabledBackend.initializeCount == 1 &&
+                disabled.inputEnabled(),
+            "explicit enable initializes the backend exactly once");
+    require(disabled.setInputEnabled(false) &&
+                disabled.setInputEnabled(true) &&
+                disabledBackend.initializeCount == 1,
+            "re-enable reuses a live backend session");
+
+    RecordingSystemInputBackend failedBackend;
+    failedBackend.failInitialize = true;
+    ActionDispatcher failed(failedBackend);
+    require(failed.initialize() && failedBackend.initializeCount == 0,
+            "logical initialization remains non-interactive");
+    require(!failed.setInputEnabled(true) &&
+                failedBackend.initializeCount == 1 &&
+                !failed.inputEnabled() && !failed.inputConfig().enabled &&
+                !failed.lastError().empty(),
+            "permission/init failure keeps runtime input disabled");
+    failedBackend.failInitialize = false;
+    require(failed.setInputEnabled(true) &&
+                failedBackend.initializeCount == 2 && failed.inputEnabled(),
+            "a second explicit enable retries backend initialization");
+
+    RecordingSystemInputBackend neverInitializedBackend;
+    {
+        ActionDispatcher neverInitialized(neverInitializedBackend);
+        require(neverInitialized.initialize(),
+                "disabled dispatcher initializes logically");
+        neverInitialized.shutdown();
+        neverInitialized.shutdown();
+    }
+    require(neverInitializedBackend.initializeCount == 0 &&
+                !neverInitializedBackend.shutdownCalled,
+            "shutdown is safe when the backend was never initialized");
+}
+
 } // namespace
 
 int main() {
@@ -488,6 +531,7 @@ int main() {
     testScrollSafetyAndConfiguration();
     testSettingsModalInputSuspension();
     testUnsupportedScrollIsExplicit();
+    testLazyBackendActivationAndRetry();
     std::cout << "[PASS] test_action_dispatcher (safe config + recovery)\n";
     return 0;
 }

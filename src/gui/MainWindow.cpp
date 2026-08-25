@@ -33,6 +33,10 @@ MainWindow::MainWindow(RuntimeConfig config,
     if (!m_actionDispatcher->initialize()) {
         qWarning() << "[NATIVE INPUT]"
                    << QString::fromStdString(m_actionDispatcher->lastError());
+        // A persisted opt-in may fail because the portal was denied or the
+        // EIS capabilities changed. Reflect the safe runtime state in the UI;
+        // no enabled=true value is written unless a later activation succeeds.
+        m_runtimeConfig.input.enabled = false;
     }
     m_configController = std::make_unique<RuntimeConfigController>(
         m_runtimeConfig, *m_actionDispatcher);

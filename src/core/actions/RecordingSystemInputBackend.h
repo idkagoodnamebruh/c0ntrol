@@ -21,6 +21,7 @@ public:
         : m_geometry(geometry) {}
 
     bool initialize() override {
+        ++initializeCount;
         m_initialized = m_geometry.isValid() && !failInitialize;
         m_lastError = m_initialized ? "" : "recording backend initialize failure";
         return m_initialized;
@@ -75,6 +76,7 @@ public:
     int buttonDownCount{0};
     int buttonUpCount{0};
     int scrollCount{0};
+    int initializeCount{0};
     bool failInitialize{false};
     bool failNextMove{false};
     bool failNextDown{false};
