@@ -2,6 +2,9 @@ name: Phase 11 Production Packages
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
@@ -9,6 +12,7 @@ permissions:
 
 env:
   MODEL_SHA256: fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   linux-production-package:
@@ -36,8 +40,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/bazel
-          key: phase11-linux-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**') }}
+          key: phase11-linux-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
           restore-keys: phase11-linux-mediapipe-v0.10.26-
+          save-always: true
 
       - name: Build pinned MediaPipe bridge
         run: >-
@@ -49,6 +54,7 @@ jobs:
         run: >-
           cmake -S . -B build-production-linux
           -DCMAKE_BUILD_TYPE=Release
+          -DC0NTROL_GIT_COMMIT="$SOURCE_COMMIT"
           -DC0NTROL_PRODUCTION_BUILD=ON
           -DBUILD_APP=ON
           -DBUILD_TESTING=ON
@@ -111,7 +117,7 @@ jobs:
           if-no-files-found: error
 
   windows-production-package:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 180
 
     steps:
@@ -130,11 +136,14 @@ jobs:
             }
           }
           "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install Qt and OpenCV from vcpkg
         shell: pwsh
         run: |
-          & "$env:VCPKG_ROOT/vcpkg.exe" install qtbase opencv4 --triplet x64-windows
+          & "$env:VCPKG_ROOT/vcpkg.exe" install `
+            --triplet x64-windows `
+            --x-install-root="$env:VCPKG_INSTALLED_DIR"
           if ($LASTEXITCODE -ne 0) { throw "vcpkg dependency install failed" }
 
       - name: Install pinned Bazelisk launcher
@@ -155,7 +164,8 @@ jobs:
         run: |
           ./scripts/build_mediapipe_bridge.ps1 `
             -WorkDirectory "$env:RUNNER_TEMP/mediapipe-production-build" `
-            -OutputDirectory "$env:RUNNER_TEMP/mediapipe bridge"
+            -OutputDirectory "$env:RUNNER_TEMP/mediapipe bridge" `
+            -OpenCvRoot "$env:VCPKG_INSTALLED_DIR/x64-windows"
           $bridgeFiles = Get-ChildItem "$env:RUNNER_TEMP/mediapipe bridge" -File
           $runtime = $bridgeFiles | Where-Object { $_.Name -match '\.(dll|so)$' } | Select-Object -First 1
           $import = $bridgeFiles | Where-Object { $_.Name -match '\.(lib|if\.lib)$' } | Select-Object -First 1
@@ -169,14 +179,16 @@ jobs:
         run: >-
           cmake -S . -B build-production-windows
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_INSTALLED_DIR="$env:VCPKG_INSTALLED_DIR"
           -DVCPKG_TARGET_TRIPLET=x64-windows
+          -DC0NTROL_GIT_COMMIT="$env:SOURCE_COMMIT"
           -DC0NTROL_PRODUCTION_BUILD=ON
           -DBUILD_APP=ON
           -DBUILD_TESTING=ON
           -DENABLE_MEDIAPIPE=ON
           -DMEDIAPIPE_BRIDGE_LIBRARY="$env:BRIDGE_IMPORT"
           -DMEDIAPIPE_BRIDGE_RUNTIME_LIBRARY="$env:BRIDGE_RUNTIME"
-          -DC0NTROL_OPENCV_RUNTIME_DIR="$env:VCPKG_ROOT/installed/x64-windows/bin"
+          -DC0NTROL_OPENCV_RUNTIME_DIR="$env:VCPKG_INSTALLED_DIR/x64-windows/bin"
 
       - name: Build production desktop and integration tests
         shell: pwsh
@@ -185,7 +197,7 @@ jobs:
       - name: Run real MediaPipe and regression tests
         shell: pwsh
         run: |
-          $env:PATH = "$env:RUNNER_TEMP/mediapipe bridge;$env:VCPKG_ROOT/installed/x64-windows/bin;$env:PATH"
+          $env:PATH = "$env:RUNNER_TEMP/mediapipe bridge;$env:VCPKG_INSTALLED_DIR/x64-windows/bin;$env:PATH"
           ctest --test-dir build-production-windows -C Release --output-on-failure
 
       - name: Create Windows ZIP with CPack

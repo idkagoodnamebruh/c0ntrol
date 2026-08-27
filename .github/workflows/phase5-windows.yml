@@ -2,6 +2,9 @@ name: Phase 11 Windows Regression
 
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
   workflow_dispatch:
 
 permissions:

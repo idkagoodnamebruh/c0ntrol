@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$WorkDirectory,
-    [Parameter(Mandatory = $true)][string]$OutputDirectory
+    [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    [Parameter(Mandatory = $true)][string]$OpenCvRoot
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,14 +28,33 @@ if ($ActualCommit -ne $MediaPipeCommit) {
 Copy-Item -Recurse `
     (Join-Path $RepositoryRoot "third_party/mediapipe_bridge") `
     (Join-Path $SourceDirectory "c0ntrol_bridge")
+Copy-Item -LiteralPath `
+    (Join-Path $RepositoryRoot "third_party/mediapipe_patches/opencv_windows.BUILD") `
+    -Destination (Join-Path $SourceDirectory "third_party/opencv_windows.BUILD")
+
+if (-not (Test-Path -LiteralPath (Join-Path $OpenCvRoot "include/opencv2"))) {
+    throw "Verified vcpkg OpenCV headers are missing: $OpenCvRoot"
+}
+$WorkspacePath = Join-Path $SourceDirectory "WORKSPACE"
+$Workspace = Get-Content -LiteralPath $WorkspacePath -Raw
+$EscapedOpenCvRoot = $OpenCvRoot.Replace("\", "\\")
+$Workspace = $Workspace.Replace(
+    'path = "C:\\opencv\\build",',
+    "path = `"$EscapedOpenCvRoot`",")
+Set-Content -LiteralPath $WorkspacePath -Value $Workspace -NoNewline
 
 $Bazel = Get-Command bazelisk -ErrorAction SilentlyContinue
 if (-not $Bazel) { $Bazel = Get-Command bazel -ErrorAction SilentlyContinue }
 if (-not $Bazel) { throw "bazelisk or bazel is required" }
+$Bash = Get-Command bash -ErrorAction SilentlyContinue
+if ($Bash) { $env:BAZEL_SH = $Bash.Source }
+$Python = (Get-Command python -ErrorAction Stop).Source
 
 Push-Location $SourceDirectory
 try {
     & $Bazel.Source build -c opt `
+        --define=MEDIAPIPE_DISABLE_GPU=1 `
+        --action_env=PYTHON_BIN_PATH="$Python" `
         --repo_env=HERMETIC_PYTHON_VERSION=3.12 `
         //c0ntrol_bridge:libc0ntrol_mediapipe_bridge.so
     if ($LASTEXITCODE -ne 0) { throw "MediaPipe bridge build failed" }

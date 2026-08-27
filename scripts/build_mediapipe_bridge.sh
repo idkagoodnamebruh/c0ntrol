@@ -32,6 +32,8 @@ fi
 
 cp -R "${repository_root}/third_party/mediapipe_bridge" \
   "${source_directory}/c0ntrol_bridge"
+cp "${repository_root}/third_party/mediapipe_patches/opencv_linux.BUILD" \
+  "${source_directory}/third_party/opencv_linux.BUILD"
 
 if command -v bazelisk >/dev/null 2>&1; then
   bazel_command="bazelisk"
