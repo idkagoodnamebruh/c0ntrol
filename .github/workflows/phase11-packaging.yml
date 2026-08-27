@@ -42,7 +42,7 @@ jobs:
       - name: Build pinned MediaPipe bridge
         run: >-
           bash scripts/build_mediapipe_bridge.sh
-          "$RUNNER_TEMP/mediapipe production build"
+          "$RUNNER_TEMP/mediapipe-production-build"
           "$RUNNER_TEMP/mediapipe bridge"
 
       - name: Configure real production profile
@@ -154,7 +154,7 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/build_mediapipe_bridge.ps1 `
-            -WorkDirectory "$env:RUNNER_TEMP/mediapipe production build" `
+            -WorkDirectory "$env:RUNNER_TEMP/mediapipe-production-build" `
             -OutputDirectory "$env:RUNNER_TEMP/mediapipe bridge"
           $bridgeFiles = Get-ChildItem "$env:RUNNER_TEMP/mediapipe bridge" -File
           $runtime = $bridgeFiles | Where-Object { $_.Name -match '\.(dll|so)$' } | Select-Object -First 1

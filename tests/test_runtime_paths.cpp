@@ -10,10 +10,10 @@ int main() {
     assert(windows.model.generic_string() ==
            "C:/Program Files/c0ntrol/models/hand_landmarker.task");
 
-    const auto linux = RuntimePaths::resolve(
+    const auto linuxLayout = RuntimePaths::resolve(
         std::filesystem::path{"/opt/c0ntrol/bin/c0ntrol"},
         "../share/c0ntrol/models");
-    assert(linux.model.generic_string() ==
+    assert(linuxLayout.model.generic_string() ==
            "/opt/c0ntrol/share/c0ntrol/models/hand_landmarker.task");
 
     const auto current = RuntimePaths::forCurrentPackage(
