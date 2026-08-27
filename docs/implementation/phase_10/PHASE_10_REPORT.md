@@ -38,8 +38,8 @@ AsyncCapture were not changed.
 - ThreadSanitizer: 2/2 PASS;
 - physical Wayland and Windows smokes: NOT RUN.
 
-Published implementation evidence is in GitHub Actions runs `32820611608` and
-`32820611718`. Automated CI never opens a portal or emits native input.
+Final published-head evidence is in GitHub Actions runs `32821192006` and
+`32821192002`. Automated CI never opens a portal or emits native input.
 
 ## Scope boundary
 
