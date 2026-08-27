@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <chrono>
 #include <cmath>
+#include <utility>
 #include "src/core/tracking/LegacyLandmarksAdapter.h"
 #include "src/core/tracking/MockHandTrackingBackend.h"
 #ifdef C0NTROL_ENABLE_MEDIAPIPE
@@ -10,9 +11,11 @@
 
 VisionWorker::VisionWorker(CameraConfig cameraConfig,
                            LandmarkFilterConfig filterConfig,
+                           std::string handModelPath,
                            QObject* parent)
     : QObject(parent),
       m_cameraConfig(sanitizeCameraConfig(cameraConfig)),
+      m_handModelPath(std::move(handModelPath)),
       m_consumerTimer(new QTimer(this)),
       m_landmarkFilterBank(sanitizeLandmarkFilterConfig(filterConfig)) {
 #ifdef C0NTROL_ENABLE_MEDIAPIPE
@@ -63,6 +66,7 @@ void VisionWorker::start() {
     if (m_running) return;
 
     HandTrackingConfig trackingConfig;
+    trackingConfig.modelPath = m_handModelPath;
     if (!m_trackingBackend->initialize(trackingConfig)) {
         emit errorOccurred(
             "TRACKING_FAILED: " +

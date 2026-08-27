@@ -6,11 +6,13 @@
 #include <QMetaObject>
 #include <QStatusBar>
 #include <QTimer>
+#include <utility>
 #include "src/core/qt/QtMetaTypes.h"
 #include "src/gui/SettingsDialog.h"
 
 MainWindow::MainWindow(RuntimeConfig config,
                        std::unique_ptr<ISettingsStore> settingsStore,
+                       std::string handModelPath,
                        QWidget* parent)
     : QMainWindow(parent),
       m_thread(nullptr),
@@ -19,6 +21,7 @@ MainWindow::MainWindow(RuntimeConfig config,
       m_gesturePipeline(m_runtimeConfig.gestures,
                         m_runtimeConfig.dynamicGestures),
       m_settingsStore(std::move(settingsStore)),
+      m_handModelPath(std::move(handModelPath)),
       m_persistedInputEnabled(m_runtimeConfig.input.enabled) {
 
     m_centralWidget = new QWidget(this);
@@ -88,7 +91,8 @@ void MainWindow::setupWorker() {
 
     m_thread = new QThread(this);
     m_worker = new VisionWorker(m_runtimeConfig.camera,
-                                m_runtimeConfig.filtering);
+                                m_runtimeConfig.filtering,
+                                m_handModelPath);
     m_worker->moveToThread(m_thread);
     connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
 

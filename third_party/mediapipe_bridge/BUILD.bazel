@@ -7,6 +7,7 @@ cc_binary(
         "c0ntrol_mediapipe_bridge.h",
     ],
     linkshared = True,
+    local_defines = ["C0NTROL_MP_BRIDGE_BUILD"],
     visibility = ["//visibility:public"],
     deps = [
         "//mediapipe/framework/formats:image",
