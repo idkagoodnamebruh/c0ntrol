@@ -118,6 +118,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve hosted vcpkg installation
+        shell: pwsh
+        run: |
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $root -or -not (Test-Path -LiteralPath "$root/vcpkg.exe")) {
+            if (Test-Path -LiteralPath "C:/vcpkg/vcpkg.exe") {
+              $root = "C:/vcpkg"
+            } else {
+              throw "The hosted runner does not expose its verified vcpkg installation"
+            }
+          }
+          "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Install Qt and OpenCV from vcpkg
         shell: pwsh
         run: |
