@@ -152,6 +152,7 @@ jobs:
         with:
           path: vcpkg_installed
           key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
+          save-always: true
 
       - name: Install Qt and OpenCV from vcpkg
         shell: pwsh
@@ -173,6 +174,7 @@ jobs:
           path: ~/.cache/bazel
           key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
           restore-keys: phase11-windows-mediapipe-v0.10.26-
+          save-always: true
 
       - name: Build pinned MediaPipe bridge
         shell: pwsh
