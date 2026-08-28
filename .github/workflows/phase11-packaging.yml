@@ -147,6 +147,12 @@ jobs:
           "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
           "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Cache pinned vcpkg installed tree
+        uses: actions/cache@v4
+        with:
+          path: vcpkg_installed
+          key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
+
       - name: Install Qt and OpenCV from vcpkg
         shell: pwsh
         run: |
