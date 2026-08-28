@@ -70,7 +70,10 @@ jobs:
         run: ctest --test-dir build-production-linux --output-on-failure
 
       - name: Create Linux TGZ with CPack
-        run: cpack --config build-production-linux/CPackConfig.cmake --verbose
+        run: |
+          cpack --config build-production-linux/CPackConfig.cmake --verbose
+          sha256sum build-production-linux/packages/*.tar.gz
+          cat build-production-linux/packages/*.sha256
 
       - name: Validate staging install from a path with spaces
         run: |
@@ -134,6 +137,12 @@ jobs:
             } else {
               throw "The hosted runner does not expose its verified vcpkg installation"
             }
+          }
+          $baseline = "ddd0023b0eee70986e42ed49d9d4afb8098f212e"
+          git -C $root cat-file -e "$baseline^{commit}" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            git -C $root fetch --depth 1 origin $baseline
+            if ($LASTEXITCODE -ne 0) { throw "Unable to fetch pinned vcpkg baseline $baseline" }
           }
           "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
           "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -202,7 +211,10 @@ jobs:
 
       - name: Create Windows ZIP with CPack
         shell: pwsh
-        run: cpack --config build-production-windows/CPackConfig.cmake -C Release --verbose
+        run: |
+          cpack --config build-production-windows/CPackConfig.cmake -C Release --verbose
+          Get-ChildItem build-production-windows/packages/*.zip | Get-FileHash -Algorithm SHA256
+          Get-Content build-production-windows/packages/*.sha256
 
       - name: Validate staging install from a path with spaces
         shell: pwsh
