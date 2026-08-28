@@ -24,8 +24,8 @@ cc_library(
         ),
         ":dbg_build": glob(["debug/lib/opencv_*d.lib"]),
     }),
-    hdrs = glob(["include/opencv2/**/*.h*"]),
-    includes = ["include/"],
+    hdrs = glob(["include/opencv4/opencv2/**/*.h*"]),
+    includes = ["include/opencv4"],
     linkstatic = 1,
     visibility = ["//visibility:public"],
 )

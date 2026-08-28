@@ -32,7 +32,7 @@ Copy-Item -LiteralPath `
     (Join-Path $RepositoryRoot "third_party/mediapipe_patches/opencv_windows.BUILD") `
     -Destination (Join-Path $SourceDirectory "third_party/opencv_windows.BUILD")
 
-if (-not (Test-Path -LiteralPath (Join-Path $OpenCvRoot "include/opencv2"))) {
+if (-not (Test-Path -LiteralPath (Join-Path $OpenCvRoot "include/opencv4/opencv2"))) {
     throw "Verified vcpkg OpenCV headers are missing: $OpenCvRoot"
 }
 $WorkspacePath = Join-Path $SourceDirectory "WORKSPACE"

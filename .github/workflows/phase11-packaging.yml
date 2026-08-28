@@ -165,7 +165,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/bazel
-          key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**') }}
+          key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
           restore-keys: phase11-windows-mediapipe-v0.10.26-
 
       - name: Build pinned MediaPipe bridge
