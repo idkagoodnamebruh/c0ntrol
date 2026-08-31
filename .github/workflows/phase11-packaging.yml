@@ -147,12 +147,12 @@ jobs:
           "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
           "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Cache pinned vcpkg installed tree
-        uses: actions/cache@v4
+      - name: Restore pinned vcpkg installed tree
+        id: windows-vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: vcpkg_installed
           key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
-          save-always: true
 
       - name: Install Qt and OpenCV from vcpkg
         shell: pwsh
@@ -162,19 +162,26 @@ jobs:
             --x-install-root="$env:VCPKG_INSTALLED_DIR"
           if ($LASTEXITCODE -ne 0) { throw "vcpkg dependency install failed" }
 
+      - name: Save pinned vcpkg installed tree
+        if: steps.windows-vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vcpkg_installed
+          key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
+
       - name: Install pinned Bazelisk launcher
         shell: pwsh
         run: |
           go install github.com/bazelbuild/bazelisk@v1.27.0
           "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      - name: Cache Bazel downloads and compilation
-        uses: actions/cache@v4
+      - name: Restore Bazel downloads and compilation
+        id: windows-bazel-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazel
           key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
           restore-keys: phase11-windows-mediapipe-v0.10.26-
-          save-always: true
 
       - name: Build pinned MediaPipe bridge
         shell: pwsh
@@ -190,6 +197,13 @@ jobs:
           "BRIDGE_RUNTIME=$($runtime.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "BRIDGE_IMPORT=$($import.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "BRIDGE_NAME=$($runtime.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Save Bazel downloads and compilation
+        if: always() && steps.windows-bazel-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel
+          key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
 
       - name: Configure real production profile
         shell: pwsh
