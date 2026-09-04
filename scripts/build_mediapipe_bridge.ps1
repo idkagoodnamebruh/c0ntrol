@@ -56,6 +56,7 @@ try {
         --define=MEDIAPIPE_DISABLE_GPU=1 `
         --conlyopt=/std:c11 `
         --conlyopt=/experimental:c11atomics `
+        --cxxopt=/std:c++20 `
         --action_env=PYTHON_BIN_PATH="$Python" `
         --repo_env=HERMETIC_PYTHON_VERSION=3.12 `
         //c0ntrol_bridge:libc0ntrol_mediapipe_bridge.so
@@ -65,7 +66,7 @@ try {
 }
 
 $BridgeDirectory = Join-Path $SourceDirectory "bazel-bin/c0ntrol_bridge"
-$RuntimeCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
+$RuntimeCandidates = Get-ChildItem -LiteralPath $BrideDirectory -File |
     Where-Object { $_.Name -match '\.(dll|so)$' }
 $ImportCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
     Where-Object { $_.Name -match '\.(lib|if\.lib)$' }
