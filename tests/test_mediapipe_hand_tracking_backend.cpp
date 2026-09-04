@@ -1,4 +1,3 @@
-#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -9,7 +8,10 @@ int main() {
     MediaPipeHandTrackingBackend backend;
     HandTrackingConfig config;
     config.modelPath = C0NTROL_MODEL_PATH;
-    assert(backend.initialize(config));
+    if (!backend.initialize(config)) {
+        std::cerr << "[FAIL] initialize: " << backend.lastError() << std::endl;
+        return 1;
+    }
 
     // A deterministic generated RGB image validates Create + DetectForVideo
     // without claiming that a hand exists in the test input.
@@ -19,12 +21,18 @@ int main() {
     const RgbImageView image{rgb.data(), width, height, width * 3};
     auto first = backend.process(image, 1'000, 0);
     auto second = backend.process(image, 1'001, 1); // same truncated ms; backend must advance it
-    assert(first.valid && second.valid);
+    if (!first.valid || !second.valid) {
+        std::cerr << "[FAIL] DetectForVideo: " << backend.lastError() << std::endl;
+        return 1;
+    }
     for (const auto& hand : first.hands) {
-        assert(hand.landmarks.size() == 21);
-        assert(hand.handedness == Handedness::UNKNOWN ||
-               hand.handedness == Handedness::LEFT ||
-               hand.handedness == Handedness::RIGHT);
+        if (hand.landmarks.size() != 21 ||
+            (hand.handedness != Handedness::UNKNOWN &&
+             hand.handedness != Handedness::LEFT &&
+             hand.handedness != Handedness::RIGHT)) {
+            std::cerr << "[FAIL] invalid converted hand" << std::endl;
+            return 1;
+        }
     }
     backend.shutdown();
     backend.shutdown();

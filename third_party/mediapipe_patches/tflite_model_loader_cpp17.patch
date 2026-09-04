@@ -1,0 +1,13 @@
+diff --git a/mediapipe/util/tflite/tflite_model_loader.cc b/mediapipe/util/tflite/tflite_model_loader.cc
+--- a/mediapipe/util/tflite/tflite_model_loader.cc
++++ b/mediapipe/util/tflite/tflite_model_loader.cc
+@@ -71,7 +71,7 @@ TfLiteModelLoader::LoadFromPathAndGetResource(
+         delete model;
+         res.reset();
+       });
+-  return TfLiteModelWithResource{.model_packet = std::move(model_packet),
+-                                 .resource = std::move(model_resource)};
++  return TfLiteModelWithResource{std::move(model_packet),
++                                 std::move(model_resource)};
+ }
+ }  // namespace mediapipe

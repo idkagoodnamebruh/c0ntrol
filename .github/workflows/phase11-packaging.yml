@@ -1,0 +1,287 @@
+name: Phase 11 Production Packages
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MODEL_SHA256: fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1
+  SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  linux-production-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install production build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config git golang-go \
+            python3-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libei-dev liboeffis-dev qt6-base-dev libopencv-dev
+
+      - name: Install pinned Bazelisk launcher
+        run: |
+          go install github.com/bazelbuild/bazelisk@v1.27.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Bazel downloads and compilation
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: phase11-linux-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
+          restore-keys: phase11-linux-mediapipe-v0.10.26-
+          save-always: true
+
+      - name: Build pinned MediaPipe bridge
+        run: >-
+          bash scripts/build_mediapipe_bridge.sh
+          "$RUNNER_TEMP/mediapipe-production-build"
+          "$RUNNER_TEMP/mediapipe bridge"
+
+      - name: Configure real production profile
+        run: >-
+          cmake -S . -B build-production-linux
+          -DCMAKE_BUILD_TYPE=Release
+          -DC0NTROL_GIT_COMMIT="$SOURCE_COMMIT"
+          -DC0NTROL_PRODUCTION_BUILD=ON
+          -DBUILD_APP=ON
+          -DBUILD_TESTING=ON
+          -DENABLE_MEDIAPIPE=ON
+          -DMEDIAPIPE_BRIDGE_LIBRARY="$RUNNER_TEMP/mediapipe bridge/libc0ntrol_mediapipe_bridge.so"
+          -DENABLE_LINUX_EIS_INPUT=ON
+          -DREQUIRE_LINUX_EIS_INPUT=ON
+
+      - name: Build production desktop and integration tests
+        run: cmake --build build-production-linux --parallel 2
+
+      - name: Run real MediaPipe and regression tests
+        run: ctest --test-dir build-production-linux --output-on-failure
+
+      - name: Create Linux TGZ with CPack
+        run: |
+          cpack --config build-production-linux/CPackConfig.cmake --verbose
+          sha256sum build-production-linux/packages/*.tar.gz
+          cat build-production-linux/packages/*.sha256
+
+      - name: Validate staging install from a path with spaces
+        run: |
+          cmake --install build-production-linux \
+            --prefix "$RUNNER_TEMP/c0ntrol installed tree"
+          cmake \
+            -DROOT="$RUNNER_TEMP/c0ntrol installed tree" \
+            -DEXECUTABLE_RELATIVE=bin/c0ntrol \
+            -DMODEL_RELATIVE=share/c0ntrol/models/hand_landmarker.task \
+            -DBRIDGE_RELATIVE=lib/libc0ntrol_mediapipe_bridge.so \
+            -DMANIFEST_RELATIVE=share/doc/c0ntrol/RELEASE_MANIFEST.txt \
+            -DREADME_RELATIVE=share/doc/c0ntrol/README.md \
+            -DNOTICES_RELATIVE=share/doc/c0ntrol/THIRD_PARTY_NOTICES.md \
+            -DEXPECTED_MODEL_SHA="$MODEL_SHA256" \
+            -DRUN_SMOKE=ON \
+            -P scripts/verify_package.cmake
+
+      - name: Extract and smoke the final TGZ
+        run: |
+          package="$(find build-production-linux/packages -maxdepth 1 -name '*.tar.gz' -print -quit)"
+          test -n "$package"
+          mkdir -p "$RUNNER_TEMP/extracted production package"
+          tar -xzf "$package" -C "$RUNNER_TEMP/extracted production package"
+          root="$(find "$RUNNER_TEMP/extracted production package" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          cmake \
+            -DROOT="$root" \
+            -DEXECUTABLE_RELATIVE=bin/c0ntrol \
+            -DMODEL_RELATIVE=share/c0ntrol/models/hand_landmarker.task \
+            -DBRIDGE_RELATIVE=lib/libc0ntrol_mediapipe_bridge.so \
+            -DMANIFEST_RELATIVE=share/doc/c0ntrol/RELEASE_MANIFEST.txt \
+            -DREADME_RELATIVE=share/doc/c0ntrol/README.md \
+            -DNOTICES_RELATIVE=share/doc/c0ntrol/THIRD_PARTY_NOTICES.md \
+            -DEXPECTED_MODEL_SHA="$MODEL_SHA256" \
+            -DRUN_SMOKE=ON \
+            -P scripts/verify_package.cmake
+
+      - name: Upload Linux production package
+        uses: actions/upload-artifact@v4
+        with:
+          name: c0ntrol-linux-production
+          path: |
+            build-production-linux/packages/*.tar.gz
+            build-production-linux/packages/*.sha256
+          if-no-files-found: error
+
+  windows-production-package:
+    runs-on: windows-2022
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve hosted vcpkg installation
+        shell: pwsh
+        run: |
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $root -or -not (Test-Path -LiteralPath "$root/vcpkg.exe")) {
+            if (Test-Path -LiteralPath "C:/vcpkg/vcpkg.exe") {
+              $root = "C:/vcpkg"
+            } else {
+              throw "The hosted runner does not expose its verified vcpkg installation"
+            }
+          }
+          $baseline = "ddd0023b0eee70986e42ed49d9d4afb8098f212e"
+          git -C $root cat-file -e "$baseline^{commit}" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            git -C $root fetch --depth 1 origin $baseline
+            if ($LASTEXITCODE -ne 0) { throw "Unable to fetch pinned vcpkg baseline $baseline" }
+          }
+          "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/vcpkg_installed" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Restore pinned vcpkg installed tree
+        id: windows-vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: vcpkg_installed
+          key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
+
+      - name: Install Qt and OpenCV from vcpkg
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT/vcpkg.exe" install `
+            --triplet x64-windows `
+            --x-install-root="$env:VCPKG_INSTALLED_DIR"
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg dependency install failed" }
+
+      - name: Save pinned vcpkg installed tree
+        if: steps.windows-vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vcpkg_installed
+          key: phase11-windows-vcpkg-x64-${{ hashFiles('vcpkg.json') }}
+
+      - name: Install pinned Bazelisk launcher
+        shell: pwsh
+        run: |
+          go install github.com/bazelbuild/bazelisk@v1.27.0
+          "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Restore Bazel downloads and compilation
+        id: windows-bazel-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/mediapipe-production-build/bazel-output-root
+          key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
+          restore-keys: phase11-windows-mediapipe-v0.10.26-
+
+      - name: Build pinned MediaPipe bridge
+        shell: pwsh
+        run: |
+          ./scripts/build_mediapipe_bridge.ps1 `
+            -WorkDirectory "$env:RUNNER_TEMP/mediapipe-production-build" `
+            -OutputDirectory "$env:RUNNER_TEMP/mediapipe bridge" `
+            -OpenCvRoot "$env:VCPKG_INSTALLED_DIR/x64-windows"
+          $bridgeFiles = Get-ChildItem "$env:RUNNER_TEMP/mediapipe bridge" -File
+          $runtime = $bridgeFiles | Where-Object { $_.Name -match '\.(dll|so)$' } | Select-Object -First 1
+          $import = $bridgeFiles | Where-Object { $_.Name -match '\.(lib|if\.lib)$' } | Select-Object -First 1
+          if (-not $runtime -or -not $import) { throw "Bridge output is incomplete" }
+          "BRIDGE_RUNTIME=$($runtime.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "BRIDGE_IMPORT=$($import.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "BRIDGE_NAME=$($runtime.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Save Bazel downloads and compilation
+        if: always() && steps.windows-bazel-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/mediapipe-production-build/bazel-output-root
+          key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
+
+      - name: Configure real production profile
+        shell: pwsh
+        run: >-
+          cmake -S . -B build-production-windows
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_INSTALLED_DIR="$env:VCPKG_INSTALLED_DIR"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+          -DC0NTROL_GIT_COMMIT="$env:SOURCE_COMMIT"
+          -DC0NTROL_PRODUCTION_BUILD=ON
+          -DBUILD_APP=ON
+          -DBUILD_TESTING=ON
+          -DENABLE_MEDIAPIPE=ON
+          -DMEDIAPIPE_BRIDGE_LIBRARY="$env:BRIDGE_IMPORT"
+          -DMEDIAPIPE_BRIDGE_RUNTIME_LIBRARY="$env:BRIDGE_RUNTIME"
+          -DC0NTROL_OPENCV_RUNTIME_DIR="$env:VCPKG_INSTALLED_DIR/x64-windows/bin"
+
+      - name: Build production desktop and integration tests
+        shell: pwsh
+        run: cmake --build build-production-windows --config Release --parallel 2
+
+      - name: Run real MediaPipe and regression tests
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:RUNNER_TEMP/mediapipe bridge;$env:VCPKG_INSTALLED_DIR/x64-windows/bin;$env:PATH"
+          ctest --test-dir build-production-windows -C Release --output-on-failure
+
+      - name: Create Windows ZIP with CPack
+        shell: pwsh
+        run: |
+          cpack --config build-production-windows/CPackConfig.cmake -C Release --verbose
+          Get-ChildItem build-production-windows/packages/*.zip | Get-FileHash -Algorithm SHA256
+          Get-Content build-production-windows/packages/*.sha256
+
+      - name: Validate staging install from a path with spaces
+        shell: pwsh
+        run: |
+          $root = "$env:RUNNER_TEMP/c0ntrol installed tree"
+          cmake --install build-production-windows --config Release --prefix $root
+          cmake `
+            -DROOT="$root" `
+            -DEXECUTABLE_RELATIVE=c0ntrol.exe `
+            -DMODEL_RELATIVE=models/hand_landmarker.task `
+            -DBRIDGE_RELATIVE="$env:BRIDGE_NAME" `
+            -DMANIFEST_RELATIVE=docs/RELEASE_MANIFEST.txt `
+            -DREADME_RELATIVE=docs/README.md `
+            -DNOTICES_RELATIVE=docs/THIRD_PARTY_NOTICES.md `
+            -DEXPECTED_MODEL_SHA="$env:MODEL_SHA256" `
+            -DEXPECT_WINDOWS_RUNTIME=ON `
+            -DRUN_SMOKE=ON `
+            -P scripts/verify_package.cmake
+
+      - name: Extract and smoke the final ZIP
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem build-production-windows/packages/*.zip | Select-Object -First 1
+          if (-not $package) { throw "Windows package was not created" }
+          $extract = "$env:RUNNER_TEMP/extracted production package"
+          Expand-Archive -LiteralPath $package.FullName -DestinationPath $extract
+          $root = (Get-ChildItem -LiteralPath $extract -Directory | Select-Object -First 1).FullName
+          cmake `
+            -DROOT="$root" `
+            -DEXECUTABLE_RELATIVE=c0ntrol.exe `
+            -DMODEL_RELATIVE=models/hand_landmarker.task `
+            -DBRIDGE_RELATIVE="$env:BRIDGE_NAME" `
+            -DMANIFEST_RELATIVE=docs/RELEASE_MANIFEST.txt `
+            -DREADME_RELATIVE=docs/README.md `
+            -DNOTICES_RELATIVE=docs/THIRD_PARTY_NOTICES.md `
+            -DEXPECTED_MODEL_SHA="$env:MODEL_SHA256" `
+            -DEXPECT_WINDOWS_RUNTIME=ON `
+            -DRUN_SMOKE=ON `
+            -P scripts/verify_package.cmake
+
+      - name: Upload Windows production package
+        uses: actions/upload-artifact@v4
+        with:
+          name: c0ntrol-windows-production
+          path: |
+            build-production-windows/packages/*.zip
+            build-production-windows/packages/*.sha256
+          if-no-files-found: error
