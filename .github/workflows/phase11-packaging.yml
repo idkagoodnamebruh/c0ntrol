@@ -179,7 +179,7 @@ jobs:
         id: windows-bazel-cache
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/bazel
+          path: ${{ runner.temp }}/mediapipe-production-build/bazel-output-root
           key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
           restore-keys: phase11-windows-mediapipe-v0.10.26-
 
@@ -202,7 +202,7 @@ jobs:
         if: always() && steps.windows-bazel-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ~/.cache/bazel
+          path: ${{ runner.temp }}/mediapipe-production-build/bazel-output-root
           key: phase11-windows-mediapipe-v0.10.26-${{ hashFiles('third_party/mediapipe_bridge/**', 'third_party/mediapipe_patches/**') }}
 
       - name: Configure real production profile

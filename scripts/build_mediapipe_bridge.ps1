@@ -31,6 +31,12 @@ Copy-Item -Recurse `
 Copy-Item -LiteralPath `
     (Join-Path $RepositoryRoot "third_party/mediapipe_patches/opencv_windows.BUILD") `
     -Destination (Join-Path $SourceDirectory "third_party/opencv_windows.BUILD")
+$CompatibilityPatch = Join-Path $RepositoryRoot `
+    "third_party/mediapipe_patches/tflite_model_loader_cpp17.patch"
+git -C $SourceDirectory apply --check $CompatibilityPatch
+if ($LASTEXITCODE -ne 0) { throw "MediaPipe C++17 compatibility patch check failed" }
+git -C $SourceDirectory apply $CompatibilityPatch
+if ($LASTEXITCODE -ne 0) { throw "MediaPipe C++17 compatibility patch failed" }
 
 if (-not (Test-Path -LiteralPath (Join-Path $OpenCvRoot "include/opencv4/opencv2"))) {
     throw "Verified vcpkg OpenCV headers are missing: $OpenCvRoot"
@@ -49,14 +55,14 @@ if (-not $Bazel) { throw "bazelisk or bazel is required" }
 $Bash = Get-Command bash -ErrorAction SilentlyContinue
 if ($Bash) { $env:BAZEL_SH = $Bash.Source }
 $Python = (Get-Command python -ErrorAction Stop).Source
+$BazelOutputRoot = Join-Path $WorkDirectory "bazel-output-root"
 
 Push-Location $SourceDirectory
 try {
-    & $Bazel.Source build -c opt `
+    & $Bazel.Source --output_user_root="$BazelOutputRoot" build -c opt `
         --define=MEDIAPIPE_DISABLE_GPU=1 `
         --conlyopt=/std:c11 `
         --conlyopt=/experimental:c11atomics `
-        --cxxopt=/std:c++20 `
         --action_env=PYTHON_BIN_PATH="$Python" `
         --repo_env=HERMETIC_PYTHON_VERSION=3.12 `
         //c0ntrol_bridge:libc0ntrol_mediapipe_bridge.so
@@ -66,7 +72,7 @@ try {
 }
 
 $BridgeDirectory = Join-Path $SourceDirectory "bazel-bin/c0ntrol_bridge"
-$RuntimeCandidates = Get-ChildItem -LiteralPath $BrideDirectory -File |
+$RuntimeCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
     Where-Object { $_.Name -match '\.(dll|so)$' }
 $ImportCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
     Where-Object { $_.Name -match '\.(lib|if\.lib)$' }
