@@ -1,0 +1,24 @@
+diff --git a/mediapipe/gpu/gl_context.cc b/mediapipe/gpu/gl_context.cc
+--- a/mediapipe/gpu/gl_context.cc
++++ b/mediapipe/gpu/gl_context.cc
+@@ -1167,7 +1167,7 @@ void GlContext::SetStandardTextureParams(
+   glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+ }
+ 
+-const GlContext::Attachment<GLuint> kUtilityFramebuffer(
++ABSL_CONST_INIT const GlContext::Attachment<GLuint> kUtilityFramebuffer(
+     [](GlContext&) -> GlContext::Attachment<GLuint>::Ptr {
+       GLuint framebuffer;
+       glGenFramebuffers(1, &framebuffer);
+diff --git a/mediapipe/gpu/gpu_service.cc b/mediapipe/gpu/gpu_service.cc
+--- a/mediapipe/gpu/gpu_service.cc
++++ b/mediapipe/gpu/gpu_service.cc
+@@ -16,7 +16,7 @@
+ 
+ namespace mediapipe {
+ 
+-const GraphService<GpuResources> kGpuService(
++ABSL_CONST_INIT const GraphService<GpuResources> kGpuService(
+     "kGpuService", GraphServiceBase::kAllowDefaultInitialization);
+ 
+ }  // namespace mediapipe
