@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <memory>
+#include <string>
 #include "src/core/config/ISettingsStore.h"
 #include "src/core/config/RuntimeConfigController.h"
 #include "src/core/input/NativeInputRuntime.h"
@@ -23,6 +24,7 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(RuntimeConfig config,
                         std::unique_ptr<ISettingsStore> settingsStore,
+                        std::string handModelPath,
                         QWidget* parent = nullptr);
     ~MainWindow();
 
@@ -54,6 +56,7 @@ private:
     std::unique_ptr<NativeInputRuntime> m_nativeInputRuntime;
     std::unique_ptr<RuntimeConfigController> m_configController;
     std::unique_ptr<ISettingsStore> m_settingsStore;
+    std::string m_handModelPath;
     QTimer* m_nativeInputStatusTimer{nullptr};
     SettingsDialog* m_activeSettingsDialog{nullptr};
     bool m_persistedInputEnabled{false};

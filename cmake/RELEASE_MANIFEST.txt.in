@@ -1,0 +1,10 @@
+c0ntrol release manifest
+Version: @PROJECT_VERSION@
+Git commit: @C0NTROL_GIT_COMMIT@
+Build profile: @c0ntrol_build_profile@
+MediaPipe: @c0ntrol_mediapipe_status@
+MediaPipe source commit: @C0NTROL_MEDIAPIPE_COMMIT@
+Hand model SHA-256: @C0NTROL_MODEL_SHA256@
+Native input: @c0ntrol_native_input_capability@
+Platform: @CMAKE_SYSTEM_NAME@
+Architecture: @CMAKE_SYSTEM_PROCESSOR@

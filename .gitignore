@@ -1,5 +1,9 @@
 # Build directory
 build/
+build-*/
+dist/
+staging/
+_CPack_Packages/
 
 # Object files and binaries
 *.o

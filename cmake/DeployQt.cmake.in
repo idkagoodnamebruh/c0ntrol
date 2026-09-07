@@ -1,0 +1,14 @@
+execute_process(
+    COMMAND "@C0NTROL_WINDEPLOYQT_EXECUTABLE@"
+            --release
+            --no-translations
+            --dir "${CMAKE_INSTALL_PREFIX}"
+            "${CMAKE_INSTALL_PREFIX}/c0ntrol.exe"
+    RESULT_VARIABLE deploy_result
+    OUTPUT_VARIABLE deploy_stdout
+    ERROR_VARIABLE deploy_stderr
+)
+if(NOT deploy_result EQUAL 0)
+    message(FATAL_ERROR
+        "windeployqt failed (${deploy_result}):\n${deploy_stdout}\n${deploy_stderr}")
+endif()

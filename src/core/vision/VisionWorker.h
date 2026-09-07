@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <opencv2/opencv.hpp>
 
 #include "src/core/capture/AsyncCapture.h"
@@ -22,6 +23,8 @@ class VisionWorker : public QObject {
 public:
     explicit VisionWorker(CameraConfig cameraConfig = {},
                           LandmarkFilterConfig filterConfig = {},
+                          std::string handModelPath =
+                              "models/hand_landmarker.task",
                           QObject* parent = nullptr);
     ~VisionWorker();
 
@@ -50,6 +53,7 @@ private:
     static std::int64_t steadyNowUs();
 
     CameraConfig m_cameraConfig;
+    std::string m_handModelPath;
     OpenCVCameraSource* m_captureSource{nullptr};
     std::unique_ptr<AsyncCapture<cv::Mat>> m_capture;
     std::unique_ptr<IHandTrackingBackend> m_trackingBackend;

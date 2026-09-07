@@ -27,9 +27,10 @@
 
 ## Evidence to retain
 
-- Linux implementation run `32820611608`, job `97717696191`: 25/25, critical
+- final published head: `ce151d9b5bb7fc4f80fd6bc830c9d07453c7c475`;
+- Linux implementation run `32821192006`, job `97719475132`: 25/25, critical
   100/100, TSAN 2/2 and desktop PASS with libei/liboeffis 1.2.1.
-- Windows implementation run `32820611718`, job `97717696622`: 22/22 and
+- Windows implementation run `32821192002`, job `97719475108`: 22/22 and
   critical 100/100 PASS.
 - Physical Wayland and physical Windows smokes were not run and must not be
   inferred from CI.
