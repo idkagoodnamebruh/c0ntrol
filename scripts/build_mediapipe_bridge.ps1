@@ -66,24 +66,45 @@ try {
         --cxxopt=/std:c++20 `
         --action_env=PYTHON_BIN_PATH="$Python" `
         --repo_env=HERMETIC_PYTHON_VERSION=3.12 `
-        //c0ntrol_bridge:libc0ntrol_mediapipe_bridge.so
+        //c0ntrol_bridge:c0ntrol_mediapipe_bridge.dll
     if ($LASTEXITCODE -ne 0) { throw "MediaPipe bridge build failed" }
 } finally {
     Pop-Location
 }
 
 $BridgeDirectory = Join-Path $SourceDirectory "bazel-bin/c0ntrol_bridge"
-$RuntimeCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
-    Where-Object { $_.Name -match '\.(dll|so)$' }
-$ImportCandidates = Get-ChildItem -LiteralPath $BridgeDirectory -File |
-    Where-Object { $_.Name -match '\.(lib|if\.lib)$' }
-if ($RuntimeCandidates.Count -ne 1 -or $ImportCandidates.Count -lt 1) {
+$RuntimeCandidates = @(Get-ChildItem -LiteralPath $BridgeDirectory -File |
+    Where-Object { $_.Name -eq 'c0ntrol_mediapipe_bridge.dll' })
+$ImportCandidates = @(Get-ChildItem -LiteralPath $BridgeDirectory -File |
+    Where-Object { $_.Name -match '^c0ntrol_mediapipe_bridge(\.dll)?(\.if)?\.lib$' })
+if ($RuntimeCandidates.Count -ne 1 -or $ImportCandidates.Count -ne 1) {
     Get-ChildItem -LiteralPath $BridgeDirectory
     throw "Could not identify one bridge runtime and its import library"
 }
 
 $Runtime = $RuntimeCandidates[0]
 $Import = $ImportCandidates[0]
+if ($Runtime.Length -eq 0 -or $Import.Length -eq 0) {
+    throw "Bazel produced an empty bridge artifact"
+}
+# Check the PE signature and IMAGE_FILE_DLL flag, not just a filename extension.
+$RuntimeBytes = [IO.File]::ReadAllBytes($Runtime.FullName)
+if ($RuntimeBytes.Length -lt 64 -or [BitConverter]::ToUInt16($RuntimeBytes, 0) -ne 0x5a4d) {
+    throw "Bridge runtime is not a PE image"
+}
+$PeOffset = [BitConverter]::ToInt32($RuntimeBytes, 0x3c)
+if ($PeOffset -lt 0 -or $PeOffset -gt ($RuntimeBytes.Length - 24) -or
+    [BitConverter]::ToUInt32($RuntimeBytes, $PeOffset) -ne 0x4550 -or
+    ([BitConverter]::ToUInt16($RuntimeBytes, $PeOffset + 22) -band 0x2000) -eq 0) {
+    throw "Bridge runtime is not a PE DLL"
+}
+$ImportBytes = [IO.File]::ReadAllBytes($Import.FullName)
+if ($ImportBytes.Length -lt 8 -or
+    [Text.Encoding]::ASCII.GetString($ImportBytes, 0, 8) -ne "!<arch>`n") {
+    throw "Bridge import library is not a COFF archive"
+}
+Get-Item -LiteralPath $Runtime.FullName, $Import.FullName | Select-Object FullName, Length
+Get-FileHash -LiteralPath $Runtime.FullName, $Import.FullName -Algorithm SHA256
 Copy-Item -LiteralPath $Runtime.FullName -Destination $OutputDirectory
 Copy-Item -LiteralPath $Import.FullName -Destination $OutputDirectory
 
